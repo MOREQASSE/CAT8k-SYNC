@@ -1,0 +1,45 @@
+Test | add_branch | ALL OPERATIONS APPLIED | 20260813_001053
+
+--- subinterface -> Cisco-IOS-XE-native:native/interface/GigabitEthernet=1.200 (PUT) : APPLIED ---
+{
+  "GigabitEthernet": [
+    {
+      "name": "1.200",
+      "description": "Test test",
+      "encapsulation": {
+        "dot1Q": {
+          "vlan-id": 200
+        }
+      },
+      "ip": {
+        "address": {
+          "primary": {
+            "address": "10.1.151.1",
+            "mask": "255.255.255.0"
+          }
+        }
+      }
+    }
+  ]
+}
+
+--- vlan -> Cisco-IOS-XE-native:native/vlan/Vlan=200 (PUT) : FAILED (RESTCONF PUT Cisco-IOS-XE-native:native/vlan/Vlan=200 -> HTTP 404: {
+  "ietf-restconf:errors": {
+    "error": [
+      {
+        "error-type": "application",
+        "error-tag": "invalid-value",
+        "error-message": "uri keypath not found"
+      }
+    ]
+  }
+}
+) ---
+{
+  "vlan": [
+    {
+      "id": 200,
+      "name": "test"
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+! ============================================================
+! Auto-generated config for {{ site_name }}
+! Action: add_branch
+! ============================================================
+!
+! ---- ROUTER CONFIG ----
+hostname {{ site_name }}-Rtr
+
+! WAN link to HQ (via HQ-Switch)
+interface {{ router_wan_port }}
+ ip address {{ router_wan_ip }} {{ router_wan_mask }}
+ no shutdown
+
+! Trunk to access switch
+interface {{ router_trunk_port }}
+ no shutdown
+
+! Department subinterface
+interface {{ router_trunk_port }}.{{ department_vlan }}
+ encapsulation dot1Q {{ department_vlan }}
+ ip address {{ gateway }} 255.255.255.0
+ no shutdown
+
+! OSPF
+router ospf {{ ospf_process }}
+ router-id {{ ospf_router_id }}
+ network {{ router_wan_ip }} 0.0.0.3 area {{ ospf_area }}
+ network {{ department_network }} {{ department_wildcard }} area {{ ospf_area }}
+
+! SSH access
+ip domain-name Company.local
+crypto key generate rsa modulus 2048
+! NOTE: no local user is re-created here — the device's existing management
+! account is used (creating it again would duplicate the sandbox credentials
+! into every rendered config). Create dedicated branch users explicitly.
+line vty 0 4
+ transport input ssh
+ login local
+ip ssh version 2
+
+do write
+!
+! ---- SWITCH CONFIG ----
+!
+hostname Sw-{{ site_name }}
+
+vlan {{ switch_vlan }}
+ name {{ vlan_name }}
+
+interface {{ switch_trunk_port }}
+ switchport mode trunk
+
+interface {{ switch_access_port }}
+ switchport mode access
+ switchport access vlan {{ switch_vlan }}
+
+ip domain-name Company.local
+crypto key generate rsa modulus 2048
+line vty 0 4
+ transport input ssh
+ login local
+
+interface Vlan1
+ ip address {{ switch_mgmt_ip }} {{ switch_mgmt_mask }}
+ no shutdown
+ip default-gateway {{ switch_default_gateway }}
+
+do write
+!
+! ---- PC CONFIG (set manually or via DHCP) ----
+! IP:      {{ pc_ip }}
+! Mask:    {{ pc_mask }}
+! Gateway: {{ pc_gateway }}
+!

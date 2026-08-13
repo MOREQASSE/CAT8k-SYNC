@@ -1,0 +1,20 @@
+! ============================================================
+! Auto-generated config for {{ site_name }}
+! Action: add_subdept
+! ============================================================
+!
+! Add new VLAN {{ vlan_id }} ({{ vlan_name }}) to
+! {{ site_name }} router at {{ target_router_ip }}
+!
+vlan {{ vlan_id }}
+ name {{ vlan_name }}
+
+interface {{ trunk_port }}.{{ vlan_id }}
+ encapsulation dot1Q {{ vlan_id }}
+ ip address {{ gateway }} 255.255.255.0
+ no shutdown
+
+router ospf {{ ospf_process }}
+ network {{ subnet }} 0.0.0.255 area {{ ospf_area }}
+
+do write

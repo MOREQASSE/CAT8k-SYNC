@@ -1,0 +1,24 @@
+--- subinterface -> Cisco-IOS-XE-native:native/interface/GigabitEthernet=1.300 (PUT) ---
+{
+  "name": "1.300",
+  "description": "Maroc-Chimie CHIMIE",
+  "encapsulation": {
+    "dot1Q": {
+      "vlan-id": 300
+    }
+  },
+  "ip": {
+    "address": {
+      "primary": {
+        "address": "192.168.300.1",
+        "mask": "255.255.255.0"
+      }
+    }
+  }
+}
+
+--- vlan -> Cisco-IOS-XE-native:native/vlan/Vlan=300 (PUT) ---
+{
+  "id": 300,
+  "name": "CHIMIE"
+}

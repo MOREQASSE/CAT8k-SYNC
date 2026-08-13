@@ -1,0 +1,19 @@
+! ============================================================
+! Auto-generated config for {{ site_name }}
+! Action: add_endpoint
+! ============================================================
+!
+! Add PC on {{ target_switch_ip }}
+! Port: {{ port }}, VLAN {{ vlan_id }}
+!
+interface {{ port }}
+ switchport mode access
+ switchport access vlan {{ vlan_id }}
+
+do write
+!
+! PC network settings:
+! IP:      {{ pc_ip }}
+! Mask:    {{ pc_mask }}
+! Gateway: {{ pc_gateway }}
+!

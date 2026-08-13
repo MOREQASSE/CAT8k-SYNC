@@ -1,0 +1,73 @@
+! ============================================================
+! Auto-generated config for Maroc-Chimie
+! Action: add_branch
+! ============================================================
+!
+! ---- ROUTER CONFIG ----
+hostname Maroc-Chimie-Rtr
+
+! WAN link to HQ (via HQ-Switch)
+interface GigabitEthernet0/0/0
+ ip address 10.0.30.2 255.255.255.252
+ no shutdown
+
+! Trunk to access switch
+interface GigabitEthernet0/0/1
+ no shutdown
+
+! Department subinterface
+interface GigabitEthernet0/0/1.300
+ encapsulation dot1Q 300
+ ip address 192.168.300.1 255.255.255.0
+ no shutdown
+
+! OSPF
+router ospf 1
+ router-id 10.0.30.2
+ network 10.0.30.2 0.0.0.3 area 0
+ network 192.168.300.0 0.0.0.255 area 0
+
+! SSH access
+ip domain-name Company.local
+crypto key generate rsa modulus 2048
+username admin privilege 15 secret cisco123!
+line vty 0 4
+ transport input ssh
+ login local
+ip ssh version 2
+
+do write
+!
+! ---- SWITCH CONFIG ----
+!
+hostname Sw-Maroc-Chimie
+
+vlan 300
+ name CHIMIE
+
+interface FastEthernet0/1
+ switchport mode trunk
+
+interface FastEthernet0/2
+ switchport mode access
+ switchport access vlan 300
+
+ip domain-name Company.local
+crypto key generate rsa modulus 2048
+username admin privilege 15 secret cisco123!
+line vty 0 4
+ transport input ssh
+ login local
+
+interface Vlan1
+ ip address 192.168.300.2 255.255.255.0
+ no shutdown
+ip default-gateway 192.168.300.1
+
+do write
+!
+! ---- PC CONFIG (set manually or via DHCP) ----
+! IP:      192.168.300.10
+! Mask:    255.255.255.0
+! Gateway: 192.168.300.1
+!

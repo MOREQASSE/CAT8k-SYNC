@@ -1,0 +1,24 @@
+QA-DRYRUN | add_subdept | DRY-RUN (nothing sent) | 20260811_173132
+
+--- subinterface -> Cisco-IOS-XE-native:native/interface/GigabitEthernet=1.911 (PUT) : DRY-RUN ---
+{
+  "GigabitEthernet": [
+    {
+      "name": "1.911",
+      "description": "QA-DRYRUN qa-dry",
+      "encapsulation": {
+        "dot1Q": {
+          "vlan-id": 911
+        }
+      },
+      "ip": {
+        "address": {
+          "primary": {
+            "address": "10.9.91.1",
+            "mask": "255.255.255.0"
+          }
+        }
+      }
+    }
+  ]
+}

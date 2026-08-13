@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAT8k-SYNC // CONTROL CLOUD</title>
+<link rel="icon" href="icons/favicon.svg">
+<link rel="stylesheet" href="css/CAT8k-SYNC.css">
+<script>window.__errlog=[];window.addEventListener("error",function(e){window.__errlog.push("E:"+e.message);});window.addEventListener("unhandledrejection",function(e){window.__errlog.push("P:"+String(e.reason));});</script>
+</head>
+<body>
+<svg id="sprite" aria-hidden="true"></svg>
+
+<div id="app">
+
+  <!-- ================= AUTH LAYER (first-run setup / login) ================= -->
+  <div id="auth" class="layer auth-layer hidden">
+    <div class="auth-card" id="auth-card"></div>
+  </div>
+
+  <!-- ================= SHELL (dashboard) ================= -->
+  <div id="shell" class="layer shell hidden">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main">
+      <header class="topbar" id="topbar"></header>
+      <section class="view-host" id="view-host"></section>
+    </main>
+    <div class="console-dock" id="console-dock">
+      <div class="console-head" id="console-head">
+        <span class="console-title">TERMINAL FEED // LIVE</span>
+        <span class="console-hint" id="console-hint">0 events</span>
+        <span class="console-copy" id="console-copy">COPY</span>
+        <button class="console-btn" id="console-collapse" type="button" title="collapse / expand the terminal feed">
+          <svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="console-btn" id="console-close" type="button" title="close the terminal feed">
+          <svg class="icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <pre class="console-body" id="console"></pre>
+    </div>
+    <button class="console-reopen" id="console-reopen" type="button" hidden>
+      <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
+      TERMINAL
+    </button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="js/icons.js"></script>
+<script src="js/api.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/topo.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/models.js"></script>
+<script src="js/views.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

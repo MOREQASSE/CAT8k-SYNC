@@ -1,0 +1,2 @@
+command inside root directory : .\CAT8k-SYNC\venv\Scripts\python.exe .\CAT8k-SYNC\gui\app.py
+for web similar ui app but native, run this inside CAT8k-SYNC: venv\Scripts\python.exe gui\webapp.py

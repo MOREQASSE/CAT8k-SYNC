@@ -1,0 +1,23 @@
+# ============================================================
+# Cisco DevNet Sandbox — Device Inventory (NON-SECRET fields)
+# ============================================================
+# Credentials are NOT stored here. Source of truth:
+#   - encrypted SQLite vault (Profile page in the app, or
+#     `python main.py setup`)  ->  preferred
+#   - environment variables CAT8000_USERNAME / CAT8000_PASSWORD
+#     (and optional CAT8000_SECRET) as fallback
+# ============================================================
+
+devices:
+  - name: "Cat8000-Sandbox"
+    device_type: "cisco_ios"
+    host: "devnetsandboxiosxec8k.cisco.com"
+    username: "reqasse"
+    port: 22
+    fast_cli: true
+    global_delay_factor: 2
+
+    # RESTCONF (HTTPS 443) — primary driver on Company network (SSH :22 is blocked)
+    restconf_https: true
+    restconf_verify_ssl: false
+    restconf_port: 443

@@ -1,0 +1,29 @@
+Cisco Secure Client (version 5.1.14.145) release.
+
+Copyright (c) 2004 - 2025, Cisco Systems, Inc. All rights reserved.
+
+
+  >> state: Unknown (Inconnu)
+VPN>   >> state: Déconnecté
+VPN>   >> state: Déconnecté
+VPN>   >> notice: Prêt à se connecter.
+VPN>   >> registered with local VPN subsystem.
+VPN> connect devnetsandbox-usw1-reservation.cisco.com:20199
+  >> contacting host (devnetsandbox-usw1-reservation.cisco.com:20199) for login information...
+VPN>   >> notice: Vous contactez devnetsandbox-usw1-reservation.cisco.com:20199.
+  >> warning: La tentative de connexion a échoué.
+  >> warning: Impossible de contacter devnetsandbox-usw1-reservation.cisco.com.
+  >> error: Le délai de la tentative de connexion a expiré.  Vérifiez la connectivité Internet.
+  >> state: Déconnecté
+VPN> reqasse
+
+[ VPN Connection commands ]
+    connect             disconnect        hosts         stats        
+    state               block             cancel 
+
+[ Misc commands ]
+    help                version           exit
+
+  For help with a specific command, try: help <command>
+
+VPN> 

@@ -1,0 +1,16 @@
+# secrets & credentials
+.env
+data/                # encrypted vault (data/.secret key + SQLite db)
+logs/                # captured running-configs (contain device user lines)
+output/              # rendered/deployed configs
+CAT8K-SYNC.db
+# python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# editor / os
+.vscode/
+.idea/
+Thumbs.db
