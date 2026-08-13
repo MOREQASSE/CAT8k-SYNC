@@ -73,22 +73,25 @@ pip install -r requirements.txt
 
 <table align="center">
   <tr>
-    <td align="center"><img src="ws_login4.png" width="420"><br><sub>Sign in</sub></td>
-    <td align="center"><img src="ws_hub4.png" width="420"><br><sub>Hub / overview</sub></td>
+    <td align="center"><img src="gui/web/screenshots/qa-home.png" width="420"><br><sub>Home / hub</sub></td>
+    <td align="center"><img src="gui/web/screenshots/qa-auth.png" width="420"><br><sub>Sign in</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="ws_tele4.png" width="420"><br><sub>Telemetry</sub></td>
-    <td align="center"><img src="ws_analys4.png" width="420"><br><sub>Analytics</sub></td>
+    <td align="center"><img src="gui/web/screenshots/qa-telemetry.png" width="420"><br><sub>Telemetry</sub></td>
+    <td align="center"><img src="gui/web/screenshots/qa-analytics.png" width="420"><br><sub>Analytics</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="ws_aud3.png" width="420"><br><sub>Audit posture</sub></td>
-    <td align="center"><img src="ws_prof4.png" width="420"><br><sub>Profile</sub></td>
+    <td align="center"><img src="gui/web/screenshots/qa-audit.png" width="420"><br><sub>Audit posture</sub></td>
+    <td align="center"><img src="gui/web/screenshots/qa-topology.png" width="420"><br><sub>Topology</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="ws_setup4.png" width="420"><br><sub>Device setup</sub></td>
-    <td align="center"><img src="ws_tele3.png" width="420"><br><sub>Telemetry detail</sub></td>
+    <td align="center"><img src="gui/web/screenshots/qa-provision.png" width="420"><br><sub>Provisioning</sub></td>
+    <td align="center"><img src="gui/web/screenshots/qa-profile.png" width="420"><br><sub>Profile</sub></td>
   </tr>
 </table>
+
+> [!TIP]
+> More captures live in `gui/web/screenshots/` — rail states, provisioning flows, deletion workflows and more.
 
 ---
 
@@ -178,7 +181,7 @@ CAT8k-SYNC/
 ├── gui/
 │   ├── app.py              # Desktop application entry point
 │   ├── webapp.py           # Web server + native web window entry point
-│   └── web/                # Web UI (JS/CSS), API bridge, QA tooling
+│   └── web/                # Web UI (JS/CSS), API bridge, screenshots, QA tooling
 ├── src/                    # Core engine
 │   ├── connector.py        # Transport handling
 │   ├── restconf_client.py  # RESTCONF client (HTTPS 443 — primary)
