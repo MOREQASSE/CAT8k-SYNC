@@ -474,8 +474,37 @@ def main():
             errors.append(("analytics-live",
                            f"chip={live_chip} x={x0!r}->{x1!r} charts={charts_ok}"))
 
-        # ---- profile: test-and-save credentials ----
+        # ---- profile: hub landing + studio navigation ----
         page.goto(f"{BASE_URL}?demo=1#profile", wait_until="networkidle")
+        page.wait_for_selector(".act-card[data-studio]")
+        hub_cards = page.locator('.act-card[data-studio]').count() == 2
+        hub_seg = page.locator("#backend-seg [data-backend]").count() == 3
+        hub_rows = all(page.locator(f"#{i}").count() == 1 for i in
+                       ("b-mode", "b-source", "b-host", "b-tunnel", "b-vpn-host", "b-reason", "b-identity"))
+        hub_chips = page.locator(".chip").count() >= 3
+        hub_id = page.locator("[data-key='full_name']").count() == 1
+        page.eval_on_selector('#backend-seg [data-backend="reservation"]', "b => b.click()")
+        page.wait_for_timeout(700)
+        hub_resv = (page.locator('#backend-seg [data-backend="reservation"].on').count() == 1
+                    and (page.locator("#b-mode").text_content() or "").lower() == "reservation")
+        page.eval_on_selector('#backend-seg [data-backend="normal"]', "b => b.click()")
+        page.wait_for_timeout(700)
+        hub_normal = (page.locator('#backend-seg [data-backend="normal"].on').count() == 1
+                      and (page.locator("#b-mode").text_content() or "").lower() == "normal")
+        page.eval_on_selector('#backend-seg [data-backend="auto"]', "b => b.click()")
+        page.wait_for_timeout(700)
+        hub_auto = (page.locator('#backend-seg [data-backend="auto"].on').count() == 1
+                    and (page.locator("#b-mode").text_content() or "").lower() == "auto")
+        print(f"profile-hub    ok  cards={hub_cards} seg={hub_seg} rows={hub_rows} "
+              f"chips={hub_chips} id={hub_id} resv={hub_resv} normal={hub_normal} auto={hub_auto}")
+        if not (hub_cards and hub_seg and hub_rows and hub_chips and hub_id
+                and hub_resv and hub_normal and hub_auto):
+            errors.append(("profile-hub", f"cards={hub_cards} seg={hub_seg} rows={hub_rows} "
+                           f"chips={hub_chips} id={hub_id} resv={hub_resv} normal={hub_normal} "
+                           f"auto={hub_auto}"))
+
+        # ---- profile: public studio — test-and-save credentials ----
+        page.click('[data-studio="public"]')
         page.wait_for_selector("[data-key='creds_host']")
         pw_masked = page.locator("[data-key='creds_password']").get_attribute("type") == "password"
         page.click(".pw-wrap .btn")
@@ -509,7 +538,11 @@ def main():
                            f"eye-svg={eye_svg} no-escaped={not eye_escaped} bad={bad_ok} "
                            f"ok={ok_ok} rows={rows_ok} sealed-toast={toast_sealed}"))
 
-        # ---- profile: vpn access card (quick access namings) ----
+        # ---- profile: reservation studio — vpn access card (quick access namings) ----
+        page.click("#mode-back")
+        page.wait_for_selector('.act-card[data-studio="reservation"]')
+        page.click('[data-studio="reservation"]')
+        page.wait_for_selector("[data-key='vpn_address']")
         vpn_fields = (page.locator("[data-key='vpn_address']").count() == 1
                       and page.locator("[data-key='vpn_username']").count() == 1
                       and page.locator("[data-key='vpn_password']").count() == 1)
@@ -554,6 +587,34 @@ def main():
             errors.append(("profile-vpn-drive", f"rows={vpn_rows} down0={tunnel_dn0} "
                            f"conn-toast={vpn_conn_toast} up={tunnel_up} "
                            f"disc-toast={vpn_disc_toast} down1={tunnel_dn1}"))
+
+        # ---- profile: reservation studio — router access + companions ----
+        bm_dev_fields = all(page.locator(f'input[data-key="{k}"]').count() == 1 for k in
+                            ("vpn_device_host", "vpn_device_user", "vpn_device_pass"))
+        bm_comp_fields = all(page.locator(f'input[data-key="res_{s}_{k}"]').count() == 1
+                             for s in ("devbox", "xrv", "nexus") for k in ("host", "port", "user", "pass"))
+        bm_host_ph = "10.10.20.48" in (page.locator('input[data-key="vpn_device_host"]')
+                                       .get_attribute("placeholder") or "")
+        bm_dev_ph = (page.locator('input[data-key="vpn_device_user"]')
+                     .get_attribute("placeholder") or "") == "developer"
+        bm_warn = page.locator(".warn-box", has_text="only inside the tunnel").count() == 1
+        bm_fold = page.locator(".fold-head").count() == 2
+        bm_chev = page.locator(".fold-chev.open").count() == 2
+        bm_comps = (page.locator(".comp-head").count() == 3
+                    and page.locator(".comp-body.hidden").count() == 2)
+        bm_live = (page.locator("#v-client").count() == 1
+                   and page.locator("#v-tunnel").count() == 1
+                   and page.locator("#vpn-save").count() == 1
+                   and page.locator("#vpn-connect").count() == 1)
+        print(f"profile-studio  ok  dev-fields={bm_dev_fields} comp-fields={bm_comp_fields} "
+              f"host-ph={bm_host_ph} dev-ph={bm_dev_ph} warn={bm_warn} folds={bm_fold} "
+              f"chev={bm_chev} comps={bm_comps} live={bm_live}")
+        if not (bm_dev_fields and bm_comp_fields and bm_host_ph and bm_dev_ph
+                and bm_warn and bm_fold and bm_chev and bm_comps and bm_live):
+            errors.append(("profile-studio", f"dev-fields={bm_dev_fields} "
+                           f"comp-fields={bm_comp_fields} host-ph={bm_host_ph} dev-ph={bm_dev_ph} "
+                           f"warn={bm_warn} folds={bm_fold} chev={bm_chev} comps={bm_comps} "
+                           f"live={bm_live}"))
 
         # ---- E2E: provision flow (mock) ----
         page.goto(f"{BASE_URL}?demo=1#provision", wait_until="networkidle")

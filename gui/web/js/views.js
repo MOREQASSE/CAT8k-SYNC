@@ -3144,81 +3144,288 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
     const st = await API.getState();
     const creds = await API.creds();
     const vpn = st.vpn;
-    host.append(
-      el("div", { class: "section-title" }, [
-        el("span", { class: "no", text: "∓" }), el("span", { class: "t", text: "OPERATOR PROFILE" }),
-      ]),
-      el("div", { class: "grid-3-2" }, [
-        el("div", { class: "card", style: "--accent:var(--teal)" }, [
-          el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("fingerprint", 16, "var(--teal)")]), el("span", { class: "t", text: "IDENTITY" })]),
-          el("div", { class: "card-body" }, [
-            field("full_name", "OPERATOR NAME", null, st.profile?.full_name || ""),
-            field("role", "ROLE", null, st.profile?.role || ""),
-            field("site", "NOC SITE", null, st.profile?.site || ""),
-            el("div", { style: "text-align:right;margin-top:8px" }, [
-              el("button", { class: "btn teal", onclick: async () => {
-                const g = (k) => (host.querySelector(`[data-key="${k}"]`) || {}).value || "";
-                await API.updateProfile({ full_name: g("full_name"), role: g("role"), site: g("site") });
-                toast("profile updated", "ok");
-              } }, [ic("save", 15), "SAVE"]),
-            ]),
-          ]),
+    const res = st.res_creds || {};
+    const STANCE = {
+      auto: { icon: "wand-2", t: "AUTO STANCE", s: "probe decides — reservation when its tunnel answers, else the public instance" },
+      normal: { icon: "globe", t: "NORMAL // PUBLIC C8K", s: "always the public Catalyst 8000 — no VPN required" },
+      reservation: { icon: "router", t: "RESERVATION // CAT8KV", s: "IOS XE on Cat8kv behind AnyConnect — tunnel required" },
+    };
+    const fold = (icon, color, title, body, open = true) => {
+      const chev = el("span", { class: "fold-chev", html: ic("chevron-right", 14) });
+      const head = el("button", { class: "fold-head", type: "button", onclick: () => {
+        const hidden = body.classList.toggle("hidden");
+        chev.classList.toggle("open", !hidden);
+      } }, [
+        el("span", { class: "icon-tile" }, [ic(icon, 14, color)]),
+        el("span", { class: "t", text: title }),
+        el("span", { style: "flex:1" }),
+        chev,
+      ]);
+      if (!open) body.classList.add("hidden");
+      else chev.classList.add("open");
+      return el("div", { class: "fold" }, [head, body]);
+    };
+    const compIcon = { devbox: "terminal", xrv: "layers-3", nexus: "network" };
+    const stackField = (key, label, value, placeholder = "") => {
+      const row = el("div", { class: "field stack" });
+      row.appendChild(el("label", { text: label }));
+      const input = el("input", { type: "text", value, placeholder });
+      input.dataset.key = key;
+      row.appendChild(input);
+      return row;
+    };
+    const compRow = (s) => {
+      const body = el("div", { class: "comp-body" }, [
+        el("div", { class: "cred-grid" }, [
+          el("div", { class: "wide" }, [stackField(`res_${s.slug}_host`, "HOST", s.host || "", "10.10.20.x")]),
+          stackField(`res_${s.slug}_port`, "PORT", String(s.port || 22), "22"),
+          stackField(`res_${s.slug}_user`, "USERNAME", s.username || "", "developer"),
+          el("div", { class: "wide" }, [passwordField(`res_${s.slug}_pass`, "PASSWORD", s.password || "", "••••••••", null, true)]),
         ]),
-        el("div", { class: "card", style: "--accent:var(--green)" }, [
-          el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("shield-lock", 16, "var(--green)")]), el("span", { class: "t", text: "FABRIC CREDENTIALS // VAULT" })]),
-          el("div", { class: "card-body" }, [
-            el("div", { class: "hint", style: "margin:0 0 10px", text: "DevNet sandbox reservations rotate every 3 days — when access breaks, paste the new reservation credentials here. Nothing is stored until the live probe succeeds." }),
-            field("creds_host", "DEVICE HOST", null, creds?.host || "", "text", "devnetsandboxiosxec8k.cisco.com"),
-            field("creds_username", "USERNAME", null, creds?.username || "", "text", "admin"),
-            passwordField("creds_password", "PASSWORD", creds?.password || ""),
-            passwordField("creds_secret", "ENABLE SECRET (optional)", creds?.secret || ""),
-            el("div", { id: "creds-status" }),
-            el("div", { class: "row", style: "justify-content:flex-end;gap:8px;margin-top:10px" }, [
-              el("button", {
-                class: "btn ghost gray", onclick: () => modal({
-                  title: "VAULT POLICY",
-                  sub: "key material",
-                  body: [el("p", { class: "muted", text: "Fernet 256-bit master key stored in the user profile directory. Credentials are sealed before they touch disk — this console never logs them." })],
-                }),
-              }, [ic("key-square", 14), "VAULT DETAILS"]),
-              el("button", { class: "btn teal", id: "creds-save", onclick: () => saveCreds() }, [ic("plug-zap", 14), "TEST & SAVE"]),
-            ]),
-            el("div", { id: "creds-live", class: "creds-live" }, [
-              el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "host" }), el("span", { class: "mono muted", id: "c-host", text: creds?.host || "—" })]),
-              el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "username" }), el("span", { class: "mono muted", id: "c-user", text: creds?.username || "—" })]),
-              el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "secret" }), el("span", { class: "mono muted", id: "c-secret", text: creds?.secret ? "********" : "unset" })]),
-            ]),
-          ]),
+        el("div", { class: "comp-save" }, [
+          el("button", { class: "btn teal xsmall", onclick: () => saveResSet(s.slug) }, [ic("save", 12), "SEAL & SAVE"]),
         ]),
-      ]),
-      el("div", { class: "card", style: "--accent:var(--yellow);margin-top:14px" }, [
-        el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("wifi", 16, "var(--yellow)")]), el("span", { class: "t", text: "VPN ACCESS // SANDBOX QUICK ACCESS" })]),
-        el("div", { class: "card-body" }, [
-          el("div", { class: "hint", style: "margin:0 0 10px", text: "Per-reservation AnyConnect login from the DevNet 'Quick Access' list — vpn_address / vpn_username / vpn_password rotate with every reservation. Credentials stay Fernet-sealed; CONNECT drives the installed Cisco Secure Client via its CLI." }),
-          field("vpn_address", "vpn_address", null, vpn?.address || "", "text", "devnetsandbox-usw1-reservation.cisco.com:20199"),
-          field("vpn_username", "vpn_username", null, vpn?.username || "", "text", "reqasse"),
-          passwordField("vpn_password", "vpn_password", vpn?.password || ""),
-          el("div", { id: "vpn-status" }),
-          el("div", { class: "row", style: "justify-content:flex-end;gap:8px;margin-top:10px" }, [
-            el("button", { class: "btn teal", id: "vpn-save", onclick: () => saveVpnAccess() }, [ic("save", 14), "SAVE"]),
-          ]),
-          el("div", { class: "creds-live" }, [
-            el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "vpn_address" }), el("span", { class: "mono muted", id: "v-address", text: vpn?.address || "—" })]),
-            el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "vpn_username" }), el("span", { class: "mono muted", id: "v-user", text: vpn?.username || "—" })]),
-            el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "client" }), el("span", { class: "mono muted", id: "v-client", text: "…" })]),
-            el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "tunnel" }), el("span", { class: "mono muted", id: "v-tunnel", text: "…" })]),
-          ]),
-          el("div", { class: "row", style: "justify-content:flex-end;gap:8px;margin-top:10px" }, [
-            el("button", { class: "btn ghost gray", id: "vpn-check", title: "re-check client + tunnel", onclick: () => vpnRefresh() }, [ic("refresh-cw", 13), "REFRESH"]),
-            el("button", { class: "btn ghost gray", id: "vpn-disconnect", onclick: () => vpnDisconnect() }, [ic("plug-zap", 13), "DISCONNECT"]),
-            el("button", { class: "btn teal", id: "vpn-connect", onclick: () => vpnConnect() }, [ic("wifi", 13), "CONNECT VPN"]),
-          ]),
+      ]);
+      const chev = el("span", { class: "fold-chev", html: ic("chevron-right", 14) });
+      const head = el("button", { class: "comp-head", type: "button", onclick: () => {
+        const hidden = body.classList.toggle("hidden");
+        chev.classList.toggle("open", !hidden);
+      } }, [
+        el("span", { class: "icon-tile small" }, [ic(compIcon[s.slug] || "server", 13, "var(--dim)")]),
+        el("span", { class: "t", html: s.label + ' <span class="comp-desc">// ' + s.desc + "</span>" }),
+        el("span", { class: "mono muted comp-addr", text: `${s.host}:${s.port} · ${s.username}` }),
+        chev,
+      ]);
+      if (s.slug !== "devbox") body.classList.add("hidden");
+      else chev.classList.add("open");
+      return el("div", { class: "comp" }, [head, body]);
+    };
+    const tiles = (b) => ["auto", "normal", "reservation"].map((m) => {
+      const c = STANCE[m];
+      return el("button", {
+        class: "inst-opt" + (b?.mode === m ? " on" : ""), "data-backend": m,
+        onclick: () => pickBackend(m),
+      }, [
+        el("span", { class: "inst-ic" }, [ic(c.icon, 17)]),
+        el("span", { class: "inst-lines" }, [
+          el("span", { class: "inst-t", text: c.t }),
+          el("span", { class: "inst-s", text: c.s }),
         ]),
-      ]),
-    );
+      ]);
+    });
+    const liveCell = (label, id, val) =>
+      el("div", { class: "live-cell" }, [
+        el("div", { class: "cap", text: label }),
+        el("div", { class: "val", id, text: val || "…" }),
+      ]);
 
-    function passwordField(key, label, value) {
-      const input = el("input", { type: "password", value, placeholder: "••••••••" });
+    const ACTS = [
+      {
+        m: "public", icon: "globe", color: "var(--green)",
+        t: "INSTANCE 01 // PUBLIC CATALYST 8000",
+        d: "the always-on public instance — RESTCONF/SSH at devnetsandboxiosxec8k.cisco.com, no VPN required",
+        cta: "OPEN CREDENTIALS",
+      },
+      {
+        m: "reservation", icon: "router", color: "var(--yellow)",
+        t: "INSTANCE 02 // CAT8KV RESERVATION",
+        d: "IOS XE on Cat8kv behind AnyConnect — tunnel access, router login and companion devices",
+        cta: "OPEN CREDENTIALS",
+      },
+    ];
+    const modeBar = el("div", { class: "row", style: "gap:10px;margin-bottom:14px;display:none" }, [
+      el("button", { id: "mode-back", class: "btn ghost gray", onclick: () => enterMode(null) }, [ic("arrow-left", 14), "OVERVIEW"]),
+      el("span", { class: "muted mono small", id: "mode-label", text: "" }),
+      el("span", { class: "spacer" }),
+    ]);
+    const body = el("div", { class: "card", style: "padding:0" });
+
+    function enterMode(m) {
+      mode = m;
+      modeBar.style.display = m === null ? "none" : "flex";
+      const label = m === "public" ? "PUBLIC C8K // CREDENTIALS"
+        : m === "reservation" ? "CAT8KV RESERVATION // CREDENTIALS" : "";
+      const ml = modeBar.querySelector("#mode-label");
+      if (ml) ml.textContent = label;
+      render();
+    }
+
+    function renderOverview() {
+      body.innerHTML = "";
+      body.appendChild(el("div", {}, [
+        el("div", { class: "section-title" }, [
+          el("span", { class: "no", text: "∓" }), el("span", { class: "t", text: "OPERATOR PROFILE" }),
+          el("span", { class: "s", text: "introduction — who you are, which fabric is live, and which instance's credits to manage" }),
+        ]),
+        el("div", { class: "grid-3-2" }, [
+          el("div", { class: "card", style: "--accent:var(--teal)" }, [
+            el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("fingerprint", 16, "var(--teal)")]), el("span", { class: "t", text: "IDENTITY" })]),
+            el("div", { class: "card-body" }, [
+              field("full_name", "OPERATOR NAME", null, st.profile?.full_name || ""),
+              field("role", "ROLE", null, st.profile?.role || ""),
+              field("site", "NOC SITE", null, st.profile?.site || ""),
+              el("div", { style: "text-align:right;margin-top:8px" }, [
+                el("button", { class: "btn teal", onclick: async () => {
+                  const g = (k) => (host.querySelector(`[data-key="${k}"]`) || {}).value || "";
+                  await API.updateProfile({ full_name: g("full_name"), role: g("role"), site: g("site") });
+                  toast("profile updated", "ok");
+                } }, [ic("save", 15), "SAVE"]),
+              ]),
+            ]),
+          ]),
+          el("div", { class: "card", style: "--accent:var(--teal)" }, [
+            el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("milestone", 16, "var(--teal)")]), el("span", { class: "t", text: "FABRIC SELECTOR // ACTIVE INSTANCE" })]),
+            el("div", { class: "card-body" }, [
+              el("div", { class: "hint", style: "margin:0 0 10px", text: "One console, two instances. Choose which fabric the console targets — every endpoint (RESTCONF / SSH / NETCONF / ping) follows the choice below instantly." }),
+              el("div", { class: "inst-stack", id: "backend-seg" }, tiles(st.backend)),
+              el("div", { class: "live-grid", id: "backend-live" }, [
+                liveCell("ACTIVE INSTANCE", "b-source", st.backend?.source),
+                liveCell("IDENTITY", "b-identity", st.backend?.identity),
+                liveCell("STANCE", "b-mode", st.backend?.mode),
+                liveCell("DEVICE", "b-host", st.backend?.host),
+                liveCell("TUNNEL", "b-tunnel", st.backend?.tunnel ? "UP" : "DOWN"),
+                liveCell("RESERVATION DEV", "b-vpn-host", st.backend?.vpn_host),
+                liveCell("STATUS", "b-reason", st.backend?.reason || "ok"),
+              ]),
+              el("div", { class: "muted small", style: "margin-top:10px;line-height:1.6", text: "The stance (device.backend) and the resolved instance (device.identity) are persisted to SQLite — instance-specific pages key off them automatically." }),
+            ]),
+          ]),
+        ]),
+        el("div", { class: "row", style: "gap:10px;margin-top:14px;flex-wrap:wrap" }, [
+          el("span", { class: "chip", text: "IDENTITY // " + (st.backend?.identity || "—") }),
+          el("span", { class: "chip", text: "STANCE // " + (st.backend?.mode || "—") }),
+          el("span", { class: "chip", text: "DEVICE // " + (st.backend?.host || "—") }),
+          el("span", { class: "chip", text: "TUNNEL // " + (st.backend?.tunnel ? "UP" : "DOWN") }),
+        ]),
+        el("div", { class: "section-title", style: "margin-top:18px" }, [
+          el("span", { class: "no", text: "P" }), el("span", { class: "t", text: "CREDENTIAL HUB" }),
+          el("span", { class: "s", text: "choose the instance — its credits open in a dedicated studio" }),
+        ]),
+        el("div", { class: "act-grid" }, ACTS.map((a) =>
+          el("div", { class: "card act-card", "data-studio": a.m, style: `--accent:${a.color}`, onclick: () => enterMode(a.m) }, [
+            el("div", { class: "act-ic" }, [ic(a.icon, 24, a.color)]),
+            el("div", { class: "act-t", text: a.t }),
+            el("div", { class: "act-d", text: a.d }),
+            el("div", { class: "act-cta" }, [el("span", { text: a.cta }), ic("arrow-right", 14)]),
+          ]))),
+      ]));
+    }
+
+    function renderPublic() {
+      body.innerHTML = "";
+      body.appendChild(el("div", {}, [
+        el("div", { class: "section-title" }, [
+          el("span", { class: "no", text: "S1" }), el("span", { class: "t", text: "PUBLIC INSTANCE // CREDENTIALS" }),
+          el("span", { class: "s", text: "the always-on public Catalyst 8000 — sealed fernet vault, verified against the live device" }),
+        ]),
+        el("div", { class: "grid-2" }, [
+          el("div", { class: "card", style: "--accent:var(--green)" }, [
+            el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("globe", 16, "var(--green)")]), el("span", { class: "t", text: "PUBLIC DEVICE LOGIN" })]),
+            el("div", { class: "card-body" }, [
+              el("div", { class: "cred-grid" }, [
+                el("div", { class: "wide" }, [stackField("creds_host", "DEVICE HOST", creds?.host || "", "devnetsandboxiosxec8k.cisco.com")]),
+                stackField("creds_username", "USERNAME", creds?.username || "", "admin"),
+                passwordField("creds_password", "PASSWORD", creds?.password || "", "••••••••", null, true),
+                el("div", { class: "wide" }, [passwordField("creds_secret", "ENABLE SECRET (optional)", creds?.secret || "", "••••••••", null, true)]),
+              ]),
+              el("div", { id: "creds-status" }),
+              el("div", { class: "row", style: "justify-content:flex-end;gap:8px;margin-top:10px" }, [
+                el("button", {
+                  class: "btn ghost gray", onclick: () => modal({
+                    title: "VAULT POLICY",
+                    sub: "key material",
+                    body: [el("p", { class: "muted", text: "Fernet 256-bit master key stored in the user profile directory. Credentials are sealed before they touch disk — this console never logs them." })],
+                  }),
+                }, [ic("key-square", 14), "VAULT DETAILS"]),
+                el("button", { class: "btn teal", id: "creds-save", onclick: () => saveCreds() }, [ic("plug-zap", 14), "TEST & SAVE"]),
+              ]),
+            ]),
+          ]),
+          el("div", { class: "card", style: "--accent:var(--green)" }, [
+            el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("activity", 16, "var(--green)")]), el("span", { class: "t", text: "SEALED STATE" })]),
+            el("div", { class: "card-body" }, [
+              el("div", { id: "creds-live", class: "creds-live" }, [
+                el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "host" }), el("span", { class: "mono muted", id: "c-host", text: creds?.host || "—" })]),
+                el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "username" }), el("span", { class: "mono muted", id: "c-user", text: creds?.username || "—" })]),
+                el("div", { class: "row", style: "justify-content:space-between;padding:6px 0" }, [el("span", { text: "secret" }), el("span", { class: "mono muted", id: "c-secret", text: creds?.secret ? "********" : "unset" })]),
+              ]),
+              el("div", { class: "hint neutral", style: "margin-top:10px", text: "Nothing is stored until the live probe succeeds — TEST & SAVE validates host, username and password against the device first." }),
+            ]),
+          ]),
+        ]),
+        el("div", { class: "row", style: "gap:10px;margin-top:14px" }, [
+          el("button", { class: "btn ghost gray", onclick: () => enterMode(null) }, [ic("arrow-left", 15), "BACK TO OVERVIEW"]),
+        ]),
+      ]));
+    }
+
+    function renderReservation() {
+      body.innerHTML = "";
+      body.appendChild(el("div", {}, [
+        el("div", { class: "section-title" }, [
+          el("span", { class: "no", text: "S1" }), el("span", { class: "t", text: "RESERVATION INSTANCE // CREDENTIALS" }),
+          el("span", { class: "s", text: "IOS XE on Cat8kv behind AnyConnect — tunnel access, router login and companion devices" }),
+        ]),
+        el("div", { class: "grid-2" }, [
+          el("div", { class: "card", style: "--accent:var(--yellow)" }, [
+            el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("router", 16, "var(--yellow)")]), el("span", { class: "t", text: "TUNNEL + ROUTER LOGIN" })]),
+            el("div", { class: "card-body" }, [
+              el("div", { class: "live-grid" }, [
+                liveCell("QUICK ACCESS", "v-address", vpn?.address),
+                liveCell("QUICK USER", "v-user", vpn?.username),
+                liveCell("ROUTER DEVICE", "v-devhost", vpn?.device_host || "10.10.20.48 (default)"),
+                liveCell("ROUTER LOGIN", "v-devuser", vpn?.device_username || "developer (default)"),
+                liveCell("CLIENT", "v-client", "…"),
+                liveCell("TUNNEL", "v-tunnel", "…"),
+              ]),
+              el("div", { id: "vpn-status" }),
+              fold("wifi", "var(--yellow)", "TUNNEL ACCESS // ANYCONNECT QUICK ACCESS", el("div", { class: "fold-body" }, [
+                el("div", { class: "cred-grid" }, [
+                  el("div", { class: "wide" }, [stackField("vpn_address", "vpn_address", vpn?.address || "", "devnetsandbox-usw1-reservation.cisco.com:20291")]),
+                  stackField("vpn_username", "vpn_username", vpn?.username || "", "reqasse"),
+                  passwordField("vpn_password", "vpn_password", vpn?.password || "", "••••••••", null, true),
+                ]),
+              ])),
+              fold("key-square", "var(--teal)", "ROUTER ACCESS // IOS XE ON CAT8KV", el("div", { class: "fold-body" }, [
+                el("div", { class: "cred-grid" }, [
+                  el("div", { class: "wide" }, [stackField("vpn_device_host", "VPN DEVICE HOST // INSIDE TUNNEL", vpn?.device_host || "", "10.10.20.48 — mgmt IP of the IOS XE on Cat8kv, from your reservation page")]),
+                  stackField("vpn_device_user", "vpn_device_username", vpn?.device_username || "", "developer"),
+                  passwordField("vpn_device_pass", "vpn_device_password", vpn?.device_password || "", "C1sco12345", "leave as-is for the DevNet default", true),
+                ]),
+                el("div", { class: "warn-box", style: "margin-top:10px" }, [ic("circle-help", 14), el("span", { text: "The device host lives ONLY inside the tunnel. The router login is NOT the Quick-Access login — this box keeps them separate and the sandbox default applies when left empty." })]),
+              ]), false),
+            ]),
+          ]),
+          el("div", { class: "card", style: "--accent:var(--yellow)" }, [
+            el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("server", 16, "var(--dim)")]), el("span", { class: "t", text: "FABRIC COMPANIONS" })]),
+            el("div", { class: "card-body" }, [
+              el("div", { class: "hint", style: "margin:0 0 8px", text: "Side devices of the same reservation — each sealed separately; DevNet defaults apply when left empty." }),
+              ...["devbox", "xrv", "nexus"].map((slug) => compRow(res[slug] || { slug })),
+              el("div", { class: "vpn-actions" }, [
+                el("button", { class: "btn ghost gray", id: "vpn-check", title: "re-check client + tunnel state", onclick: () => vpnRefresh() }, [ic("refresh-cw", 14), "REFRESH"]),
+                el("button", { class: "btn ghost red", id: "vpn-disconnect", title: "tear down the AnyConnect tunnel", onclick: () => vpnDisconnect() }, [ic("power", 14), "DISCONNECT"]),
+                el("button", { class: "btn ghost", id: "vpn-save", title: "seal the reservation access into the fernet vault", onclick: () => saveVpnAccess() }, [ic("save", 14), "SAVE RESERVATION"]),
+                el("button", { class: "btn teal", id: "vpn-connect", title: "connect AnyConnect with the quick-access login", onclick: () => vpnConnect() }, [ic("wifi", 14), "CONNECT VPN"]),
+              ]),
+            ]),
+          ]),
+        ]),
+      ]));
+    }
+
+    function render() {
+      if (mode === "public") renderPublic();
+      else if (mode === "reservation") renderReservation();
+      else renderOverview();
+    }
+
+    let mode = null;
+    host.append(el("div", { class: "stagger" }, [modeBar, body]));
+    render();
+    vpnRefresh();
+
+    function passwordField(key, label, value, placeholder = "••••••••", hint = null, stack = false) {
+      const input = el("input", { type: "password", value, placeholder });
       input.dataset.key = key;
       const eye = el("button", {
         class: "btn ghost gray iconbtn", type: "button",
@@ -3228,9 +3435,10 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
           eye.replaceChildren(el("span", { html: ic(show ? "eye-off" : "eye", 13) }));
         },
       }, [el("span", { html: ic("eye", 13) })]);
-      const row = el("div", { class: "field" });
+      const row = el("div", { class: stack ? "field stack" : "field" });
       row.appendChild(el("label", { text: label }));
       row.appendChild(el("div", { class: "pw-wrap" }, [input, eye]));
+      if (hint) row.appendChild(el("div", { class: "hint", text: hint }));
       return row;
     }
 
@@ -3268,7 +3476,10 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
       const g = (k) => (host.querySelector(`[data-key="${k}"]`) || {}).value || "";
       const address = g("vpn_address").trim();
       const username = g("vpn_username").trim();
+      const deviceHost = g("vpn_device_host").trim();
+      const deviceUser = g("vpn_device_user").trim();
       let pw = g("vpn_password");
+      let devicePw = g("vpn_device_pass");
       const status = host.querySelector("#vpn-status");
       const saveBtn = host.querySelector("#vpn-save");
       if (!address || !username) {
@@ -3276,9 +3487,13 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
         return;
       }
       if (pw && pw === (vpn?.password || "")) pw = "";
+      if (devicePw && devicePw === (vpn?.device_password || "")) devicePw = "";
       saveBtn.disabled = true;
       saveBtn.replaceChildren(el("span", { class: "spinner" }), el("span", { text: " SEALING" }));
-      const ok = await API.saveVpn({ address, username, password: pw }).catch(() => null);
+      const ok = await API.saveVpn({
+        address, username, password: pw, device_host: deviceHost,
+        device_username: deviceUser, device_password: devicePw,
+      }).catch(() => null);
       saveBtn.replaceChildren(el("span", { html: ic("save", 14) }), el("span", { text: " SAVE" }));
       saveBtn.disabled = false;
       if (!ok) {
@@ -3289,7 +3504,23 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
       const set = (id, v) => { const n = host.querySelector("#" + id); if (n) n.textContent = v; };
       set("v-address", address);
       set("v-user", username);
+      set("v-devhost", deviceHost || "10.10.20.48 (default)");
+      set("v-devuser", deviceUser || "developer (default)");
       toast("vpn access saved", "ok");
+      await vpnRefresh();
+    }
+
+    async function saveResSet(slug) {
+      const g = (k) => (host.querySelector(`[data-key="res_${slug}_${k}"]`) || {}).value || "";
+      const cur = res[slug] || {};
+      let pw = g("pass");
+      if (pw && pw === (cur.password || "")) pw = "";
+      const r = await API.saveRes(slug, {
+        host: g("host").trim(), port: g("port").trim(),
+        username: g("user").trim(), password: pw,
+      }).catch(() => null);
+      toast(r && r.ok ? `companion '${slug}' sealed` : `companion '${slug}' save failed`, r && r.ok ? "ok" : "err");
+      return r;
     }
 
     const VPN_ERR = {
@@ -3312,6 +3543,37 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
         tunnel.textContent = st.tunnel ? "UP" : "DOWN";
         tunnel.style.color = st.tunnel ? "var(--green)" : "var(--red)";
       }
+      if (st.backend) setBackendLive(st.backend);
+    }
+
+    function setBackendLive(b) {
+      const set = (id, v) => { const n = host.querySelector("#" + id); if (n) n.textContent = v; };
+      set("b-mode", b.mode);
+      set("b-source", b.source);
+      set("b-host", b.host || "—");
+      set("b-tunnel", b.tunnel ? "UP" : "DOWN");
+      set("b-vpn-host", b.vpn_host || "—");
+      set("b-identity", b.identity || "—");
+      const reason = host.querySelector("#b-reason");
+      if (reason) {
+        if (b.mode === "reservation" && b.reason === "vpn-device-host-missing") {
+          reason.textContent = "reservation device host required — fill ROUTER ACCESS above";
+          reason.style.color = "var(--red)";
+        } else {
+          reason.textContent = "ok";
+          reason.style.color = "var(--green)";
+        }
+      }
+      host.querySelectorAll("#backend-seg [data-backend]").forEach((btn) => {
+        btn.classList.toggle("on", btn.dataset.backend === b.mode);
+      });
+    }
+
+    async function pickBackend(mode) {
+      const res = await API.setBackend(mode).catch(() => null);
+      if (res && res.ok) setBackendLive(res.backend);
+      toast(res && res.ok ? `backend -> ${res.backend.mode}` : "backend switch failed", res && res.ok ? "ok" : "err");
+      await vpnRefresh();
     }
 
     async function vpnRefresh() {

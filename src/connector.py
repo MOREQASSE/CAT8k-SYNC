@@ -43,12 +43,14 @@ def _env_creds():
 
 def load_devices(filepath=None):
     """Device inventory. Source of truth is the encrypted SQLite vault
-    (written by the GUI setup / CLI 'setup' / profile page). Falls back to
-    non-secret fields in config/devices.yaml plus optional CAT8000_* env
-    credentials; raises if no credentials are resolvable anywhere."""
+    (written by the GUI setup / CLI 'setup' / profile page) — or, when the
+    dual-mode resolver picks the VPN backend, the reservation device host.
+    Falls back to non-secret fields in config/devices.yaml plus optional
+    CAT8000_* env credentials; raises if no credentials are resolvable."""
     global _warned
     _load_dotenv()
-    rec = db.get_device_plain()
+    from src import device_mode
+    rec = device_mode.active_device() or db.get_device_plain()
     if rec:
         return [{
             "name": rec["name"],

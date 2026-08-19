@@ -27,7 +27,8 @@ PREFLIGHT_TIMEOUT = 4  # fast socket probe on :830 before trying NETCONF
 
 
 def _connect():
-    dev = db.get_device_plain()
+    from src import device_mode
+    dev = device_mode.active_device() or db.get_device_plain()
     if not dev:
         raise ConnectionError("no device in vault — run setup first")
     return manager.connect(
@@ -40,7 +41,8 @@ def _connect():
 
 def _netconf_reachable():
     """Fast preflight: is :830 actually open before we attempt ncclient (25s)?"""
-    dev = db.get_device_plain()
+    from src import device_mode
+    dev = device_mode.active_device() or db.get_device_plain()
     if not dev:
         return False
     try:

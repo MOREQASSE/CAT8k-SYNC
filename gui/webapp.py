@@ -22,6 +22,7 @@ sys.path.insert(0, BASE)
 from src import db, vault                      # noqa: E402
 from src import vpn as vpnlib                   # noqa: E402
 from src import automation                      # noqa: E402
+from src import device_mode                     # noqa: E402
 from src.restconf_client import get_restconf_device  # noqa: E402
 from gui.engine import Engine, BASELINE_PATH, _dev_name as _device_name  # noqa: E402
 
@@ -294,7 +295,34 @@ class Api:
             },
             "creds": creds,
             "vpn": self._masked_vpn(),
+            "res_creds": self._masked_res(),
+            "backend": device_mode.active_info(),
+            "identity": {
+                "instance": db.get_setting("device.identity", ""),
+                "at": db.get_setting("device.identity_at", ""),
+                "preference": db.get_setting("device.backend", "auto"),
+            },
             "version": {"app": "CAT8k-SYNC", "build": "0.4.0-web", "core": "pywebview"},
+        }
+
+    def _masked_res(self):
+        """Reservation companion credential sets (defaults applied, masked)."""
+        try:
+            sets = db.get_res_creds()
+        except Exception:  # noqa: BLE001
+            return {}
+        return {
+            slug: {
+                "slug": slug,
+                "label": s.get("label", slug),
+                "desc": s.get("desc", ""),
+                "host": s.get("host", ""),
+                "port": s.get("port", ""),
+                "username": s.get("username", ""),
+                "password": vault.mask(s.get("password", "")) if s.get("password") else "",
+                "updated": s.get("updated", ""),
+            }
+            for slug, s in sets.items()
         }
 
     def _masked_creds(self):
@@ -322,6 +350,10 @@ class Api:
             "address": vpn.get("address", ""),
             "username": vpn.get("username", ""),
             "password": vault.mask(vpn.get("password", "")) if vpn.get("password") else "",
+            "device_host": vpn.get("device_host", ""),
+            "device_username": vpn.get("device_username", ""),
+            "device_password": (vault.mask(vpn.get("device_password", ""))
+                                if vpn.get("device_password") else ""),
             "updated": vpn.get("updated", ""),
         }
 
@@ -378,20 +410,56 @@ class Api:
             "address": str(c.get("address") or "").strip(),
             "username": str(c.get("username") or "").strip(),
             "password": str(c.get("password") or ""),
+            "device_host": str(c.get("device_host") or "").strip(),
+            "device_username": str(c.get("device_username") or "").strip(),
+            "device_password": str(c.get("device_password") or ""),
         })
+        device_mode.invalidate()
         db.log_event("OK", "PROFILE", "vpn access sealed in fernet vault")
         db.log_ledger("SETTINGS", db.get_setting("session", ""), "save-vpn",
                       payload={"address": str(c.get("address") or "")})
         return True
 
+    def setBackend(self, mode):
+        """Switch the device backend: 'auto' | 'normal' | 'reservation'."""
+        try:
+            info = device_mode.set_backend(str(mode or ""))
+        except ValueError as e:
+            return {"ok": False, "error": str(e)[:120]}
+        db.log_event("INFO", "PROFILE", f"device backend -> {info.get('mode')}")
+        db.log_ledger("SETTINGS", db.get_setting("session", ""), "set-backend",
+                      payload={"mode": info.get("mode")})
+        return {"ok": True, "backend": info}
+
+    def saveRes(self, slug, rec):
+        """Save one reservation companion credential set (devbox/xrv/nexus)."""
+        slug = str(slug or "").strip()
+        rec = rec or {}
+        try:
+            db.save_res_cred(slug, {
+                "host": str(rec.get("host") or "").strip(),
+                "port": str(rec.get("port") or "22").strip(),
+                "username": str(rec.get("username") or "").strip(),
+                "password": str(rec.get("password") or ""),
+            })
+        except ValueError as e:
+            return {"ok": False, "error": str(e)[:120]}
+        device_mode.invalidate()
+        db.log_event("OK", "PROFILE", f"reservation companion sealed -> {slug}")
+        db.log_ledger("SETTINGS", db.get_setting("session", ""), "save-res-cred",
+                      payload={"slug": slug})
+        return {"ok": True, "set": self._masked_res().get(slug)}
+
     def vpnStatus(self):
-        dev = db.get_device_plain() or {}
+        active = device_mode.active_device()
+        dev = active or db.get_device_plain() or {}
         st = vpnlib.vpn_state(
             device_host=dev.get("host", ""),
             device_port=int(dev.get("restconf_port") or 443),
         )
         rec = db.get_vpn_plain() or {}
         st["address"] = rec.get("address", "")
+        st["backend"] = device_mode.active_info()
         return st
 
     def vpnConnect(self):
@@ -402,14 +470,17 @@ class Api:
         if not (address and username and password):
             return {"ok": False, "error": "vpn-credentials-missing"}
         res = vpnlib.vpn_connect(address, username, password)
+        device_mode.invalidate()
         db.log_event("OK" if res.get("ok") else "WARN", "VPN",
                      "vpn connect " + ("ok" if res.get("ok") else res.get("error", "failed")))
         db.log_ledger("SETTINGS", db.get_setting("session", ""), "vpn-connect",
                       payload={"endpoint": address, "ok": bool(res.get("ok"))})
+        res["backend"] = device_mode.active_info()
         return res
 
     def vpnDisconnect(self):
         res = vpnlib.vpn_disconnect()
+        device_mode.invalidate()
         db.log_event("OK" if res.get("ok") else "WARN", "VPN",
                      "vpn disconnect " + ("ok" if res.get("ok") else res.get("error", "failed")))
         db.log_ledger("SETTINGS", db.get_setting("session", ""), "vpn-disconnect",
@@ -991,7 +1062,7 @@ class Api:
 
     def ping(self, host):
         try:
-            dev = db.get_device_plain()
+            dev = device_mode.active_device() or db.get_device_plain()
             from src.restconf_client import get, RestconfError
             params = {"host": dev["host"], "username": dev["username"],
                       "password": dev["password"], "https": True,

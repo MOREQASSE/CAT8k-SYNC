@@ -14,7 +14,8 @@ SAFE_VERBS = ("show", "dir", "more", "ping", "traceroute", "terminal")
 
 
 def _params():
-    dev = db.get_device_plain()
+    from src import device_mode
+    dev = device_mode.active_device() or db.get_device_plain()
     if not dev:
         raise ConnectionError("no device in vault — run setup first")
     return {

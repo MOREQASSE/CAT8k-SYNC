@@ -1,0 +1,7 @@
+{
+  "Cisco-IOS-XE-ospf-oper:ospf-oper-data": {
+    "ospf-state": {
+      "op-mode": "ospf-ships-in-the-night"
+    }
+  }
+}

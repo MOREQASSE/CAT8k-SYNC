@@ -1,2 +1,3 @@
-command inside root directory : .\CAT8k-SYNC\venv\Scripts\python.exe .\CAT8k-SYNC\gui\app.py
-for web similar ui app but native, run this inside CAT8k-SYNC: venv\Scripts\python.exe gui\webapp.py
+run from the repository root:  venv\Scripts\python.exe gui\webapp.py
+
+the CLI lives in main.py, the full documentation in docs/

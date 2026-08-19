@@ -90,9 +90,19 @@ const API = (() => {
         secret: "********",
       },
       vpn: {
-        address: "devnetsandbox-usw1-reservation.cisco.com:20199",
+        address: "devnetsandbox-usw1-reservation.cisco.com:20291",
         username: "reqasse",
         password: "********",
+        device_host: "10.10.20.48",
+        device_username: "developer",
+        device_password: "********",
+      },
+      backend: { mode: "auto", source: "normal", host: "devnetsandboxiosxec8k.cisco.com", tunnel: false, reason: null, vpn_host: "10.10.20.48", identity: "cat8000-public" },
+      identity: { instance: "cat8000-public", at: "2026-08-13 15:20:00", preference: "auto" },
+      res_creds: {
+        devbox: { slug: "devbox", label: "Developer Box", desc: "Linux environment", host: "10.10.20.50", port: 22, username: "developer", password: "********", updated: "" },
+        xrv: { slug: "xrv", label: "IOS XRv 9K", desc: "XR router", host: "10.10.20.35", port: 22, username: "developer", password: "********", updated: "" },
+        nexus: { slug: "nexus", label: "Nexus 9K", desc: "NX-OS switch", host: "10.10.20.40", port: 22, username: "admin", password: "********", updated: "" },
       },
       version: { app: "CAT8k-SYNC", build: "0.4.0-web", core: "pywebview 6" },
     },
@@ -859,11 +869,28 @@ const API = (() => {
     _vpnUp: false,
     vpnStatus: async () => {
       await delay(250);
+      const b = { ...mock._state.backend, tunnel: mock._vpnUp };
+      if (mock._vpnUp) {
+        b.source = "reservation";
+        b.host = mock._state.vpn.device_host || "10.10.20.48";
+        b.identity = "cat8000v-reservation";
+      }
       return {
         client: true, cli: mock._vpnUp ? "connected" : "disconnected",
         tunnel: mock._vpnUp,
         address: mock._state.vpn.address,
+        backend: b,
       };
+    },
+    setBackend: async (mode) => {
+      mock._state.backend = { ...mock._state.backend, mode };
+      return { ok: true, backend: mock._state.backend };
+    },
+    saveRes: async (slug, rec) => {
+      const cur = mock._state.res_creds[slug] || { slug };
+      const pw = rec.password ? "********" : cur.password;
+      mock._state.res_creds[slug] = { ...cur, ...rec, password: pw };
+      return { ok: true, set: mock._state.res_creds[slug] };
     },
     vpnConnect: async () => {
       await delay(1600);
@@ -907,6 +934,8 @@ const API = (() => {
     vpnStatus: () => call("vpnStatus", []),
     vpnConnect: () => call("vpnConnect", []),
     vpnDisconnect: () => call("vpnDisconnect", []),
+    setBackend: (mode) => call("setBackend", [mode]),
+    saveRes: (slug, rec) => call("saveRes", [slug, rec]),
     validate: (form) => call("validate", [form]),
     series: () => call("series", []),
     trends: () => call("trends", []),

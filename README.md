@@ -5,16 +5,14 @@
 <h1 align="center">CAT8k · SYNC</h1>
 
 <p align="center">
-  <b>One pane of glass for your Cisco Catalyst 8000v — telemetry, analytics, audit and provisioning, from a native desktop shell or a browser.</b>
+  <b>Telemetry, provisioning, audit and analytics for the Cisco Catalyst 8000v — from a browser window or a shell.</b>
 </p>
 
 <p align="center">
-  <a href="#features"><img src="https://img.shields.io/badge/features-09-a78bfa?style=flat-square&logo=cisco&logoColor=white"></a>
-  <a href="#installation"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white"></a>
-  <a href="#usage"><img src="https://img.shields.io/badge/restconf-443%20primary-16a34a?style=flat-square"></a>
-  <a href="#usage"><img src="https://img.shields.io/badge/netconf%20%2F%20ssh-supported-f59e0b?style=flat-square"></a>
-  <a href="#ui"><img src="https://img.shields.io/badge/ui-native%20desktop%20%2B%20web-0ea5e9?style=flat-square"></a>
-  <a href="#qa"><img src="https://img.shields.io/badge/qa-playwright%20suite-ef4444?style=flat-square"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white"></a>
+  <a href="docs/webapp.md"><img src="https://img.shields.io/badge/interface-web%20%2B%20cli-0ea5e9?style=flat-square"></a>
+  <a href="docs/inventory.md"><img src="https://img.shields.io/badge/restconf-443%20primary-16a34a?style=flat-square"></a>
+  <a href="docs/qa.md"><img src="https://img.shields.io/badge/qa-playwright%20suite-ef4444?style=flat-square"></a>
 </p>
 
 <p align="center">
@@ -23,196 +21,72 @@
 
 ---
 
-## Quick Start
+## What this is
 
-> [!TIP]
-> Everything you need is in `requirements.txt` — a standard virtual environment is enough.
+CAT8k-SYNC is a small network-automation platform for a single Cisco Catalyst 8000v edge router. It collects telemetry and configuration over RESTCONF, with NETCONF and SSH available as secondary transports, stores every observation in a local SQLite database, detects drift, and provisions branch networks through Jinja2-templated RESTCONF operations. Credentials are never stored in plain text: they live in an encrypted SQLite vault and are used only at call time. Every provisioning action and every scan lands in a tamper-evident audit ledger.
 
-```powershell
-# Windows (PowerShell) — from inside the CAT8k-SYNC directory
+The project has two interfaces, both documented in full in `docs/`. The web app (`gui/webapp.py`) is the primary one: it serves the UI over a loopback HTTP server and opens it either in a pywebview native window or in your default browser. The CLI (`main.py`) covers the same ground from a terminal. There is no desktop shell and no separate GUI framework dependency; the entire interface stack is web plus command line.
+
+## Quick start
+
+1. Create a virtual environment and install the runtime dependencies.
+
+```
 python -m venv venv
-venv\Scripts\python.exe -m pip install --upgrade pip
 venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-```bash
-# macOS / Linux
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+2. Launch the web app from the repository root. It binds to `127.0.0.1:17771` only, so no network exposure is involved.
+
 ```
-
-### Launch
-
-| Shell | Desktop app (customtkinter) | Web app (native window / browser) |
-|---|---|---|
-| Windows | `venv\Scripts\python.exe gui\app.py` | `venv\Scripts\python.exe gui\webapp.py` |
-| macOS / Linux | `python gui/app.py` | `python gui/webapp.py` |
-
-> [!NOTE]
-> Launch the web app from the repository root — it serves the UI itself and prints the local URL on startup.
-
----
-
-## Features
-
-| | |
-|---|---|
-| **Telemetry collection** | Scheduled device snapshots with a 30-second live auto-collector — CPU, memory, interfaces, ARP and errors stream straight into a local time-series store. |
-| **Analytics** | Multi-window charts (ALL / 1W / 1D) with live auto-refresh, KPI strip, and dense-window label management — no overlapping ticks, ever. |
-| **Audit posture** | Config posture checks with severity scoring, a full change ledger, filters and gated fixes — all tracked, all undoable. |
-| **Provisioning** | Jinja2 templates compiled into device configuration and deployed through the RESTCONF driver (HTTPS 443, primary) or CLI. |
-| **Multi-transport** | RESTCONF first, with NETCONF exploration and SSH/CLI automation (Netmiko + Paramiko) as fallback and companion paths. |
-| **Human-friendly CLI** | `show` command wrappers parsed through TextFSM into structured data for charts and reports. |
-| **Credential vault** | Local, safe storage of device credentials — the vault never leaves the machine. |
-| **Dual UI** | A native CustomTkinter desktop app *and* a web UI served locally, with identical features and a demo mode for click-through without hardware. |
-
----
-
-## Screenshots
-
-<table align="center">
-  <tr>
-    <td align="center"><img src="gui/web/screenshots/qa-home.png" width="420"><br><sub>Home / hub</sub></td>
-    <td align="center"><img src="gui/web/screenshots/qa-auth.png" width="420"><br><sub>Sign in</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="gui/web/screenshots/qa-telemetry.png" width="420"><br><sub>Telemetry</sub></td>
-    <td align="center"><img src="gui/web/screenshots/qa-analytics.png" width="420"><br><sub>Analytics</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="gui/web/screenshots/qa-audit.png" width="420"><br><sub>Audit posture</sub></td>
-    <td align="center"><img src="gui/web/screenshots/qa-topology.png" width="420"><br><sub>Topology</sub></td>
-  </tr>
-  <tr>
-    <td align="center"><img src="gui/web/screenshots/qa-provision.png" width="420"><br><sub>Provisioning</sub></td>
-    <td align="center"><img src="gui/web/screenshots/qa-profile.png" width="420"><br><sub>Profile</sub></td>
-  </tr>
-</table>
-
-> [!TIP]
-> More captures live in `gui/web/screenshots/` — rail states, provisioning flows, deletion workflows and more.
-
----
-
-## Installation
-
-<details>
-<summary><b>Step by step — Windows</b></summary>
-
-```powershell
-# 1. Create the virtual environment
-python -m venv venv
-
-# 2. Activate it
-venv\Scripts\Activate.ps1
-
-# 3. Upgrade pip, then install the pinned dependencies
-venv\Scripts\python.exe -m pip install --upgrade pip
-venv\Scripts\python.exe -m pip install -r requirements.txt
-```
-
-</details>
-
-<details>
-<summary><b>Step by step — macOS / Linux</b></summary>
-
-```bash
-# 1. Create the virtual environment
-python3 -m venv venv
-
-# 2. Activate it
-source venv/bin/activate
-
-# 3. Upgrade pip, then install the pinned dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-</details>
-
-**Dependencies** (`requirements.txt`):
-
-| Package | Role |
-|---|---|
-| `netmiko` | SSH / CLI automation of network devices |
-| `paramiko` | SSH transport under the hood |
-| `pyyaml` | Configuration files & template context |
-| `jinja2` | Configuration template engine |
-| `textfsm` | Structured parsing of `show` output |
-| `requests` | RESTCONF over HTTPS |
-| `customtkinter` | Native desktop UI |
-
----
-
-## Usage
-
-### Desktop app
-
-```powershell
-venv\Scripts\python.exe gui\app.py
-```
-
-The desktop shell is the full management station: connect to a device, stream telemetry, run audit posture, generate and deploy configurations.
-
-### Web app (native)
-
-```powershell
 venv\Scripts\python.exe gui\webapp.py
 ```
 
-The same engine behind a web UI — it spawns its own local server and opens a native window (pywebview). From there you can also open it in any browser.
+3. On first run, the app asks for a passphrase and the device credentials, then writes the encrypted vault and the `data/CAT8k-SYNC.db` database. Everything after that works without a passphrase prompt until the next session.
 
-> [!TIP]
-> Add `?demo=1` to the URL for a fully self-contained demo with a simulated device — no sandbox, no credentials, no hardware required.
+For the command-line route, see `docs/cli.md`. The default target device is the public Cisco DevNet Sandbox IOS XE on Catalyst 8000v (always-on, `devnetsandboxiosxec8k.cisco.com`), which works out of the box with the credentials you enter at setup.
 
-### Device connectivity
-
-- **RESTCONF over HTTPS (443)** — the primary path; TLS, YANG, JSON.
-- **NETCONF explorer** — browse and inspect the device's capabilities.
-- **SSH / CLI** — via Netmiko + Paramiko with TextFSM parsing for anything RESTCONF can't express.
-
----
-
-## Repository Map
+## Repository layout
 
 ```
 CAT8k-SYNC/
+├── main.py                 CLI entry point (setup, connect, collect, scan, provision)
+├── probe.py                pywebview bridge health probe (web UI ↔ Python)
+├── requirements.txt        runtime dependencies
+├── requirements-dev.txt    QA-only dependencies (Playwright)
+├── src/                    engine backend: connector, parser, deployer, vault, db, ...
 ├── gui/
-│   ├── app.py              # Desktop application entry point
-│   ├── webapp.py           # Web server + native web window entry point
-│   └── web/                # Web UI (JS/CSS), API bridge, screenshots, QA tooling
-├── src/                    # Core engine
-│   ├── connector.py        # Transport handling
-│   ├── restconf_client.py  # RESTCONF client (HTTPS 443 — primary)
-│   ├── netconf_explorer.py # NETCONF capability explorer
-│   ├── cli_runner.py       # SSH / CLI automation (Netmiko)
-│   ├── parser.py           # TextFSM show-output parsing
-│   ├── generator.py        # Jinja2 configuration generation
-│   ├── deployer.py         # RESTCONF provisioning driver
-│   ├── automation.py       # Snapshot & telemetry collectors
-│   ├── db.py               # Local embedded time-series store
-│   ├── vault.py            # Credential vault
-│   └── vpn.py              # Tunnel / transport helpers
-├── config/                 # YAML config + Jinja2 templates
-├── data/                   # Local databases
-├── logs/  output/  screenshots/
-├── requirements.txt
-└── startup.txt
+│   ├── webapp.py           web server (127.0.0.1:17771) + Python↔JS API bridge
+│   ├── engine.py           orchestrator shared by web app and CLI
+│   └── web/                static UI (HTML/CSS/JS), icon sprite, Playwright probes
+├── config/
+│   ├── devices.yaml        device inventory (host, transports, RESTCONF options)
+│   ├── branches.yaml       branch network definitions + provisioning actions
+│   └── templates/          Jinja2 payload templates (add_branch, add_subdept, ...)
+├── tools/                  standalone device probes (datastores, NETCONF, ...)
+├── docs/                   full documentation (architecture, setup, CLI, security, ...)
+└── data/                   SQLite database + vault key (created at first run)
 ```
 
----
+## Documentation
 
-## QA
+| Page | Covers |
+| --- | --- |
+| [docs/index.md](docs/index.md) | Reading guide, project goals, prerequisites |
+| [docs/architecture.md](docs/architecture.md) | Layers, modules, transports, data flow |
+| [docs/setup.md](docs/setup.md) | Environment, first run, device targets |
+| [docs/cli.md](docs/cli.md) | Every `main.py` command with examples |
+| [docs/webapp.md](docs/webapp.md) | Web UI, views, API bridge, health probe |
+| [docs/inventory.md](docs/inventory.md) | `devices.yaml`, `branches.yaml`, provisioning actions |
+| [docs/data.md](docs/data.md) | SQLite schema, telemetry series, audit ledger |
+| [docs/security.md](docs/security.md) | Vault, masking, threat model |
+| [docs/qa.md](docs/qa.md) | Probe scripts, Playwright suite, observed results |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | Known sandbox behaviours and fixes |
 
-The web UI ships with a Playwright-based QA harness (`gui/web/tools/qa.py`) covering analytics live-refresh, audit, banners, chart-label collision checks and console-error hygiene — the same probes used to keep this project honest:
+## Quality assurance
 
-```powershell
-venv\Scripts\python.exe gui\web\tools\qa.py
-```
+A Playwright suite (`gui/web/tools/qa.py`) exercises every view of the web UI, and a set of probe scripts (`gui/web/tools/`, `tools/`) validates the Python side against the live device. Both are described in `docs/qa.md`. Screenshots captured during the runs live in `gui/web/screenshots/`.
 
----
+## Project context
 
-<p align="center">
-  <sub><b>CAT8k · SYNC</b> — Catalyst 8000v, synced. Built with ❤︎, Python and too much coffee.</sub>
-</p>
+This repository was developed as a final-year engineering project (PFA). The accompanying report documents the design, the functional chains, and the measured performance (provisioning cycle of about 5 seconds, telemetry and drift tracking over several weeks). The code is a working prototype against a real device, not a simulator: every number in the report comes from runs against the Cisco DevNet Sandbox.

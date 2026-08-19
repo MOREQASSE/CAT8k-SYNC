@@ -280,17 +280,28 @@ def get_device_plain():
 
 def save_vpn(rec):
     """Sanbox VPN access record (Quick Access links: vpn_address, vpn_username,
-    vpn_password). Password is Fernet-encrypted; empty password keeps the
-    previously sealed value."""
+    vpn_password, and vpn_device_host = the reservation device's mgmt IP /
+    hostname reachable only inside the tunnel; vpn_device_username and
+    vpn_device_password = the SSH/RESTCONF/NETCONF login of that device, which
+    on DevNet reservations differs from the Quick Access login). Passwords are
+    Fernet-encrypted; an empty password keeps the previously sealed value."""
     from src import vault
     password = rec.get("password", "")
     if password:
         password = vault.encrypt(password)
     else:
         password = get_setting("vpn.password", "")
+    device_password = rec.get("device_password", "")
+    if device_password:
+        device_password = vault.encrypt(device_password)
+    else:
+        device_password = get_setting("vpn.device_password", "")
     set_setting("vpn.address", rec.get("address", ""))
     set_setting("vpn.username", rec.get("username", ""))
     set_setting("vpn.password", password)
+    set_setting("vpn.device_host", rec.get("device_host", ""))
+    set_setting("vpn.device_username", rec.get("device_username", ""))
+    set_setting("vpn.device_password", device_password)
     set_setting("vpn.updated", now())
     return True
 
@@ -306,8 +317,76 @@ def get_vpn_plain():
         "address": address,
         "username": username,
         "password": vault.decrypt(get_setting("vpn.password", "")),
+        "device_host": get_setting("vpn.device_host", ""),
+        "device_username": get_setting("vpn.device_username", ""),
+        "device_password": vault.decrypt(get_setting("vpn.device_password", "")),
         "updated": get_setting("vpn.updated", ""),
     }
+
+
+# ---------------------------------------------------------------- reservation companions
+
+# Credential sets for the other devices of the Cat8kv reservation (reachable
+# only inside the tunnel). Every field is editable in the profile page and
+# stored Fernet-sealed; the documented sandbox defaults apply until changed.
+RES_COMPANIONS = {
+    "devbox": {
+        "label": "Developer Box", "desc": "Linux environment",
+        "default_host": "10.10.20.50", "default_port": 22,
+        "default_username": "developer", "default_password": "C1sco12345",
+    },
+    "xrv": {
+        "label": "IOS XRv 9K", "desc": "XR router",
+        "default_host": "10.10.20.35", "default_port": 22,
+        "default_username": "developer", "default_password": "C1sco12345",
+    },
+    "nexus": {
+        "label": "Nexus 9K", "desc": "NX-OS switch",
+        "default_host": "10.10.20.40", "default_port": 22,
+        "default_username": "admin", "default_password": "RG!_Yw200",
+    },
+}
+
+RES_SLUGS = tuple(RES_COMPANIONS)
+
+
+def save_res_cred(slug, rec):
+    """Editable reservation companion credential set (devbox/xrv/nexus).
+    Passwords are Fernet-encrypted; an empty password keeps the sealed one."""
+    if slug not in RES_COMPANIONS:
+        raise ValueError(f"unknown reservation companion '{slug}'")
+    from src import vault
+    password = rec.get("password", "")
+    if password:
+        password = vault.encrypt(password)
+    else:
+        password = get_setting(f"res.{slug}.password", "")
+    set_setting(f"res.{slug}.host", str(rec.get("host") or "").strip())
+    set_setting(f"res.{slug}.port", str(int(rec.get("port") or 22)))
+    set_setting(f"res.{slug}.username", str(rec.get("username") or "").strip())
+    set_setting(f"res.{slug}.password", password)
+    set_setting(f"res.{slug}.updated", now())
+    return True
+
+
+def get_res_creds():
+    """All reservation companion sets with defaults applied, plaintext
+    passwords (the caller masks before exposing to the UI)."""
+    from src import vault
+    out = {}
+    for slug, meta in RES_COMPANIONS.items():
+        out[slug] = {
+            "slug": slug,
+            "label": meta["label"],
+            "desc": meta["desc"],
+            "host": get_setting(f"res.{slug}.host", "") or meta["default_host"],
+            "port": int(get_setting(f"res.{slug}.port", "") or meta["default_port"]),
+            "username": get_setting(f"res.{slug}.username", "") or meta["default_username"],
+            "password": vault.decrypt(get_setting(f"res.{slug}.password", ""))
+                        or meta["default_password"],
+            "updated": get_setting(f"res.{slug}.updated", ""),
+        }
+    return out
 
 
 # ---------------------------------------------------------------- snapshots
@@ -578,12 +657,14 @@ def ledger_chain(limit=100):
 def verify_ledger():
     """Recompute the whole chain; report first broken link.
 
-    Returns {ok, total, broken_at, last_hash}."""
+    The anchor is the first entry's prev_hash when present (the genesis
+    constant may legitimately change between re-seeds); otherwise the
+    constant. Returns {ok, total, broken_at, last_hash}."""
     conn = connect()
     try:
         rows = conn.execute(
             "SELECT * FROM audit_ledger ORDER BY id ASC").fetchall()
-        prev_hash = _ledger_genesis()
+        prev_hash = (rows[0]["prev_hash"] if rows else _ledger_genesis())
         for i, r in enumerate(rows):
             recomputed = hashlib.sha256(
                 f"{prev_hash}|{r['event_type']}|{r['actor']}|{r['action']}"
