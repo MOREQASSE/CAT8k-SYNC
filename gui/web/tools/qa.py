@@ -631,15 +631,22 @@ def main():
         page.fill("[data-key='department_subnet']", "10.1.155.0/24")
         page.fill("[data-key='gateway']", "10.1.155.1")
         page.locator("button.btn.teal:has-text('DEPLOY')").click()
-        page.wait_for_timeout(600)
-        modal_ok = page.locator(".modal").count() > 0
-        print(f"provision-modal  ok  modal={modal_ok}")
-        page.click(".modal .btn.teal, .modal .btn.red")
-        page.wait_for_timeout(1600)
+        page.wait_for_selector(".launch-ov.on", timeout=3000)
+        ov_ok = page.locator(".launch-ov.on").count() == 1
+        page.wait_for_selector(".launch-card", timeout=20000)
+        card_ok = page.locator(".launch-card:has-text('MISSION ACCOMPLISHED')").count() == 1
+        print(f"provision-launch  ok  overlay={ov_ok} card={card_ok}")
+        page.wait_for_timeout(300)
         toasts = page.locator(".toast").all_text_contents()
         print("toast:", toasts)
         if not any("change applied" in t for t in toasts):
             errors.append(("e2e", "deploy toast not confirmed"))
+        if not (ov_ok and card_ok):
+            errors.append(("e2e", "launch sequence overlay/card missing"))
+        page.click(".launch-card .btn")
+        page.wait_for_timeout(400)
+        gone_ok = page.locator(".launch-ov").count() == 0
+        print(f"provision-close  ok  overlay-gone={gone_ok}")
 
         browser.close()
 

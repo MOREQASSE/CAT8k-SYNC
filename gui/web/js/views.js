@@ -86,6 +86,177 @@ const Views = (() => {
     ]);
   }
 
+  /* ---- deploy launch sequence -----------------------------------------
+     origin: the DEPLOY button the user clicked; the rocket icon inside it
+     escapes the button, grows, lands on a launch pad and lifts off. The
+     async run() promise drives the real provisioning; the overlay finishes
+     with a mission-accomplished or launch-aborted card. */
+  const ROCKET_SVG = () => sv("svg", { viewBox: "0 0 120 176", width: 150, height: 220, class: "launch-ship" }, [
+    sv("defs", {}, [
+      sv("linearGradient", { id: "lg-body", x1: 0, y1: 0, x2: 1, y2: 1 }, [
+        sv("stop", { offset: 0, "stop-color": "#f8fafc" }),
+        sv("stop", { offset: 1, "stop-color": "#94a3b8" }),
+      ]),
+      sv("linearGradient", { id: "lg-fin", x1: 0, y1: 0, x2: 0, y2: 1 }, [
+        sv("stop", { offset: 0, "stop-color": "#22d3ee" }),
+        sv("stop", { offset: 1, "stop-color": "#0e7490" }),
+      ]),
+      sv("linearGradient", { id: "lg-flame", x1: 0, y1: 0, x2: 0, y2: 1 }, [
+        sv("stop", { offset: 0, "stop-color": "#fff7ed" }),
+        sv("stop", { offset: 0.35, "stop-color": "#fbbf24" }),
+        sv("stop", { offset: 1, "stop-color": "#ea580c" }),
+      ]),
+    ]),
+    sv("path", { d: "M60 4 C82 4 98 22 98 62 L98 118 C98 132 84 138 60 138 C36 138 22 132 22 118 L22 62 C22 22 38 4 60 4 Z", fill: "url(#lg-body)" }),
+    sv("path", { d: "M34 96 L6 142 L24 136 Z", fill: "url(#lg-fin)" }),
+    sv("path", { d: "M86 96 L114 142 L96 136 Z", fill: "url(#lg-fin)" }),
+    sv("ellipse", { cx: 60, cy: 22, rx: 20, ry: 9, fill: "#ffffff", opacity: 0.55 }),
+    sv("circle", { cx: 60, cy: 56, r: 13, fill: "#0b1220" }),
+    sv("circle", { cx: 60, cy: 56, r: 15, fill: "none", stroke: "#22d3ee", "stroke-width": 2.5 }),
+    sv("path", { d: "M24 118 L96 118 L92 130 L28 130 Z", fill: "#475569" }),
+    sv("path", { d: "M44 138 L76 138 L70 152 L50 152 Z", fill: "#334155" }),
+    sv("g", { class: "flame-g" }, [
+      sv("ellipse", { cx: 60, cy: 156, rx: 20, ry: 30, fill: "url(#lg-flame)", opacity: 0.9 }),
+      sv("ellipse", { cx: 60, cy: 156, rx: 11, ry: 20, fill: "#fde68a" }),
+      sv("ellipse", { cx: 60, cy: 156, rx: 5, ry: 10, fill: "#ffffff" }),
+    ]),
+  ]);
+
+  async function launchSequence({ origin, site, meta = [], run, onSuccess, onAbort }) {
+    const t0 = performance.now();
+    const T = () => `T+${((performance.now() - t0) / 1000).toFixed(1)}s`;
+    const telBox = el("div", { class: "launch-telemetry" });
+    const tel = (m) => telBox.appendChild(el("div", { class: "tl", text: `${T()}  ${m}` }));
+    const stg = el("div", { class: "launch-stage", text: "ARMED" });
+    const setStage = (label) => {
+      stg.textContent = label;
+      stg.classList.remove("pop");
+      void stg.offsetWidth;
+      stg.classList.add("pop");
+    };
+
+    const scene = el("div", { class: "launch-scene" }, [
+      el("div", { class: "launch-pad" }, el("span", { class: "launch-pad-tag", text: "PAD P-1 // CAT8k-SYNC" })),
+      el("div", { class: "launch-puff", style: "left:calc(50% - 96px);animation-delay:0s" }),
+      el("div", { class: "launch-puff", style: "left:calc(50% - 40px);animation-delay:.4s" }),
+      el("div", { class: "launch-puff", style: "left:calc(50% + 24px);animation-delay:.8s" }),
+      el("div", { class: "launch-rocket" }, [ROCKET_SVG()]),
+      el("div", { class: "launch-speed" }),
+    ]);
+    const msg = el("div", { class: "launch-msg" });
+    const ov = el("div", { class: "launch-ov" }, [
+      el("div", { class: "launch-sky" }),
+      el("div", { class: "launch-stars" }),
+      telBox, stg, scene, msg,
+    ]);
+    document.body.appendChild(ov);
+
+    const armed = origin;
+    const btnLbl = armed.lastChild;
+    const btnIco = armed.firstChild;
+    const origLbl = btnLbl.textContent;
+    armed.classList.add("arming");
+    armed.disabled = true;
+    btnLbl.textContent = "IGNITION";
+    btnIco.classList.add("arm-ic");
+
+    const rect = armed.getBoundingClientRect();
+    const clone = el("div", {
+      class: "launch-clone",
+      style: `left:${rect.left + rect.width / 2}px;top:${rect.top + rect.height / 2}px`,
+    }, [ic("rocket", 16, "var(--teal)")]);
+    document.body.appendChild(clone);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      ov.classList.add("on");
+      clone.classList.add("go");
+    }));
+
+    const close = () => {
+      ov.remove();
+      clone.remove();
+      armed.classList.remove("arming");
+      armed.disabled = false;
+      btnLbl.textContent = origLbl;
+      btnIco.classList.remove("arm-ic");
+    };
+
+    const rocket = scene.querySelector(".launch-rocket");
+    tel("payload sealed — RESTCONF session queued");
+    await delay(560);
+    rocket.classList.add("enter");
+    tel("launch pad ready — hold-down released");
+    await delay(480);
+    setStage("IGNITION");
+    tel("ignition sequence start");
+    rocket.classList.remove("enter");
+    rocket.classList.add("ignite");
+    scene.classList.add("burn");
+    await delay(1500);
+    setStage("LIFTOFF");
+    tel("liftoff — pushing config to fabric");
+    rocket.classList.remove("ignite");
+    rocket.classList.add("lift");
+    scene.classList.add("fly");
+    await delay(1750);
+    rocket.classList.remove("lift");
+    rocket.classList.add("orbit");
+    scene.classList.remove("burn", "fly");
+    setStage("ORBIT — COMMIT PENDING");
+    tel("in orbit — awaiting commit acknowledgment");
+
+    let retries = 0;
+    const tick = setInterval(() => tel(`still pushing — retry ${++retries}`), 2000);
+    const p = run().then((r) => ({ r }), (e) => ({ r: { ok: false, detail: String((e && e.message) || e) } }));
+    const res = (await Promise.all([p, delay(4300)]))[0].r;
+    clearInterval(tick);
+
+    if (res && res.ok) {
+      setStage("COMMIT ACK — CHAIN APPENDED");
+      tel("commit acknowledgment received — ledger entry written");
+      onSuccess();
+      await delay(750);
+      rocket.classList.remove("orbit");
+      rocket.classList.add("flyoff");
+      scene.classList.add("clear");
+      await delay(900);
+      const card = el("div", { class: "launch-card ok" }, [
+        el("div", { class: "burst" }, [ic("check", 44, "var(--green)")]),
+        el("div", { class: "lc-title", text: "MISSION ACCOMPLISHED" }),
+        el("div", { class: "lc-sub", text: `${site} is live on the fabric` }),
+        el("div", { class: "lc-chips" }, meta.map(([k, v]) =>
+          el("span", { class: "chip" }, [el("b", { text: k }), el("i", { text: String(v) }) ]))),
+        el("button", { class: "btn teal", onclick: close }, [ic("check-circle-2", 15), "BACK TO STUDIO"]),
+      ]);
+      for (let i = 0; i < 16; i++) {
+        msg.appendChild(el("span", {
+          class: "conf",
+          style: `--dx:${(Math.random() * 260 - 130).toFixed(0)}px;--dy:${(Math.random() * 190 + 50).toFixed(0)}px;` +
+            `--rot:${(Math.random() * 360).toFixed(0)}deg;--d:${(Math.random() * 0.5).toFixed(2)}s;` +
+            `--c:${["#06b6d4", "#10b981", "#f59e0b", "#f8fafc"][i % 4]}`,
+        }));
+      }
+      msg.appendChild(card);
+      msg.classList.add("show");
+    } else {
+      const why = (res && res.detail) || "fabric rejected the provision";
+      setStage("LAUNCH ABORTED");
+      tel("thrust lost — abort sequence");
+      onAbort();
+      rocket.classList.remove("orbit");
+      rocket.classList.add("abort");
+      scene.classList.add("clear");
+      await delay(950);
+      const card = el("div", { class: "launch-card bad" }, [
+        el("div", { class: "burst" }, [ic("octagon-alert", 44, "var(--red)")]),
+        el("div", { class: "lc-title", text: "LAUNCH ABORTED" }),
+        el("div", { class: "lc-sub", text: why }),
+        el("button", { class: "btn ghost gray", onclick: close }, "BACK TO STUDIO"),
+      ]);
+      msg.appendChild(card);
+      msg.classList.add("show");
+    }
+  }
+
   /* ============================================================ AUTH — setup / login */
   async function auth(host) {
     const st = await API.getState();
@@ -1192,34 +1363,36 @@ const Views = (() => {
       });
     }
 
-    function deploy() {
+    function deploy(btn) {
       if (form.action === "delete_branch") return confirmTeardown();
-      const m = modal({
-        title: "PROVISION // DEPLOY",
-        sub: `${form.action} @ ${form.site_name || "unnamed site"}`,
-        body: [
-          el("div", { class: "grid2" }, Object.entries(form).filter(([, v]) => v && v !== "action").map(([k, v]) => kv(k, v))),
-        ],
-        actions: el("div", { style: "text-align:right" }, [
-          el("button", {
-            class: "btn teal", onclick: async (e) => {
-              e.target.disabled = true;
-              Console.write(`APPLY] ${form.action} :: ${form.site_name} :: vlan ${form.vlan_id}`, "sys");
-              const errs = await API.validate(form).catch(() => ({}));
-              if (Object.keys(errs).length) { toast("validation: " + Object.values(errs)[0], "bad"); e.target.disabled = false; return; }
-              const res = await API.provision(form).catch(() => null);
-              if (res && res.ok) {
-                toast("change applied to fabric — refreshing plan", "sys");
-                Console.write("OK] provision committed", "ok");
-                m.close();
-                refreshFabric();
-              } else {
-                toast("provision rejected by fabric", "bad"); Console.write("FAIL] provision rejected", "fail");
-                e.target.disabled = false;
-              }
-            },
-          }, [ic("zap", 15), "DEPLOY]"]),
-        ]),
+      const meta = [
+        ["ACTION", form.action], ["SITE", form.site_name], ["VLAN", form.vlan_id],
+        ["SUBNET", form.department_subnet], ["GATEWAY", form.gateway],
+        ["ROUTER WAN", form.router_wan_ip], ["TRUNK", form.router_trunk_port],
+      ].filter(([, v]) => v && v !== "");
+      launchSequence({
+        origin: btn,
+        site: form.site_name || "unnamed site",
+        meta,
+        run: async () => {
+          Console.write(`APPLY] ${form.action} :: ${form.site_name} :: vlan ${form.vlan_id}`, "sys");
+          const errs = await API.validate(form).catch(() => ({}));
+          if (Object.keys(errs).length) return { ok: false, detail: "validation: " + Object.values(errs)[0] };
+          const res = await API.provision(form).catch(() => null);
+          if (res && res.ok) {
+            Console.write("OK] provision committed", "ok");
+            return { ok: true };
+          }
+          return { ok: false, detail: (res && res.detail) || "provision rejected by fabric" };
+        },
+        onSuccess: () => {
+          toast("change applied to fabric — refreshing plan", "sys");
+          refreshFabric();
+        },
+        onAbort: () => {
+          toast("provision rejected by fabric", "bad");
+          Console.write("FAIL] provision rejected", "fail");
+        },
       });
     }
 
@@ -1250,14 +1423,14 @@ const Views = (() => {
       dep.replaceWith(el("button", {
         id: "dep-go", class: del ? "btn red" : "btn teal",
         disabled: del ? !form.vlan_id : !form.site_name,
-        onclick: () => deploy(),
+        onclick: (e) => deploy(e.currentTarget),
       }, del ? [ic("trash-2", 15), "TEARDOWN SELECTED"] : [ic("rocket", 15), "DEPLOY →"]));
     }
 
     const foot = el("div", { class: "row", style: "margin-top:16px;gap:10px" }, [
       el("button", { id: "back-go", class: "btn ghost gray", onclick: () => setStep(step - 1) }, [ic("chevron-left", 15), "BACK"]),
       el("button", { id: "prev-go", class: "btn ghost gray", onclick: preview }, [ic("eye", 15), "PREVIEW"]),
-      el("button", { id: "dep-go", class: "btn teal", onclick: () => deploy() }, [ic("rocket", 15), "DEPLOY →"]),
+      el("button", { id: "dep-go", class: "btn teal", onclick: (e) => deploy(e.currentTarget) }, [ic("rocket", 15), "DEPLOY →"]),
     ]);
 
     host.append(
