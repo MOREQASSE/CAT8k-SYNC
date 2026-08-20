@@ -13,6 +13,7 @@
   <a href="docs/webapp.md"><img src="https://img.shields.io/badge/interface-web%20%2B%20cli-0ea5e9?style=flat-square"></a>
   <a href="docs/inventory.md"><img src="https://img.shields.io/badge/restconf-443%20primary-16a34a?style=flat-square"></a>
   <a href="docs/qa.md"><img src="https://img.shields.io/badge/qa-playwright%20suite-ef4444?style=flat-square"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-D22128?style=flat-square"></a>
 </p>
 
 <p align="center">
@@ -86,6 +87,10 @@ CAT8k-SYNC/
 ## Quality assurance
 
 A Playwright suite (`gui/web/tools/qa.py`) exercises every view of the web UI, and a set of probe scripts (`gui/web/tools/`, `tools/`) validates the Python side against the live device. Both are described in `docs/qa.md`. Screenshots captured during the runs live in `gui/web/screenshots/`.
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE). Logos and trademarks — including Cisco — belong to their respective owners.
 
 ## Project context
 
