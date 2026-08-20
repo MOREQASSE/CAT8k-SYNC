@@ -18,8 +18,13 @@ if BASE not in sys.path:
 
 import yaml
 
-from src.connector import load_devices
-from src.deployer import build_operations, deploy_restconf, get_physical_parent_interface
+from src.connector import load_devices, netmiko_params
+from src.deployer import (
+    build_operations,
+    deploy_restconf,
+    deploy_via_ssh,
+    get_physical_parent_interface,
+)
 from src.parser import collect_config_restconf, scan_compliance
 from src.automation import (
     delete_subinterface,
@@ -79,6 +84,30 @@ def _actor():
         return db.get_setting("session", "")
     except Exception:  # noqa: BLE001
         return ""
+
+
+def _deploy_reason(text):
+    """Pull the most useful failure line out of the deploy log so the UI can
+    tell the operator why a provision was rejected instead of a bare False."""
+    hints = ("SSH connection failed", "SSH authentication failed",
+             "Deployment error", "transport failure",
+             "SSH fallback: device params unavailable",
+             "host-register via SSH : FAILED",
+             "device identity changed", "unreachable", "planes down",
+             "transport-level failure", "RESTCONF hostname probe failed",
+             "HTTP 4", "HTTP 5", "RestconfError")
+    # the native/ip/dhcp 404 is EXPECTED (it is the trigger for the SSH
+    # fallback) — it must never be reported as the failure reason
+    lines = [l for l in text.splitlines()
+             if "uri keypath not found" not in l
+             and "native/ip/dhcp" not in l]
+    for line in reversed(lines):
+        if any(h in line for h in hints):
+            return line.strip()[:220]
+    for line in reversed(lines):
+        if "[FAIL]" in line or "FAIL" in line:
+            return line.strip()[:220]
+    return "deployment returned failures — see the action log for details"
 
 
 # YANG write snippets + CLI equivalents for each remediable check id.
@@ -271,24 +300,45 @@ class Engine:
 
     def provision(self, action_data, dry_run):
         def fn():
-            dev = action_data.get("device") or _dev_name()
-            try:
-                ok = deploy_restconf(action_data, device_name=action_data.get("device"),
-                                     dry_run=dry_run)
-                db.log_action("PROVISION", "OK" if ok else "FAIL",
-                              "dry-run" if dry_run else ("deployed" if ok else "one or more operations failed"),
-                              payload=_json_dump(action_data), device=dev)
-                db.log_ledger("WRITE", _actor(), "provision",
-                              payload={**action_data, "dry_run": bool(dry_run),
-                                       "result": "ok" if ok else "failed"})
-            except Exception as e:
-                db.log_action("PROVISION", "FAIL", str(e)[:200],
-                              payload=_json_dump(action_data), device=dev)
-                db.log_ledger("WRITE", _actor(), "provision:failed",
-                              payload={"error": str(e)[:300]})
-                raise
+            ok, _detail = self._deploy(action_data, dry_run)
+            return bool(ok)
 
         self._run("PROVISION", fn)
+
+    def provision_sync(self, action_data, dry_run):
+        """Synchronous provision used by the web bridge so the UI reports the
+        real result (registry write only happens when the deployment applied).
+        Logs the same actions + ledger entries as the async path.
+        Returns (ok, detail) — detail carries the failure reason on False."""
+        return self._deploy(action_data, dry_run)
+
+    def _deploy(self, action_data, dry_run):
+        dev = action_data.get("device") or _dev_name()
+        buf = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(buf):
+                ok = deploy_restconf(action_data, device_name=action_data.get("device"),
+                                     dry_run=dry_run)
+            detail = _deploy_reason(buf.getvalue()) if not ok else ""
+            if not ok and detail and not dry_run:
+                attempts = sum(1 for l in buf.getvalue().splitlines()
+                               if "[PREFLIGHT] attempt" in l)
+                if attempts >= 2:
+                    detail = f"{attempts} of 3 attempts failed — {detail}"
+            db.log_action("PROVISION", "OK" if ok else "FAIL",
+                          "dry-run" if dry_run else ("deployed" if ok else detail or "one or more operations failed"),
+                          payload=_json_dump(action_data), device=dev)
+            db.log_ledger("WRITE", _actor(), "provision",
+                          payload={**action_data, "dry_run": bool(dry_run),
+                                   "result": "ok" if ok else "failed",
+                                   "detail": detail})
+            return bool(ok), detail
+        except Exception as e:
+            db.log_action("PROVISION", "FAIL", str(e)[:200],
+                          payload=_json_dump(action_data), device=dev)
+            db.log_ledger("WRITE", _actor(), "provision:failed",
+                          payload={"error": str(e)[:300]})
+            raise
 
     def collect(self):
         def fn():
@@ -768,12 +818,17 @@ class Engine:
         self._run("SET_IP", fn)
 
     def set_interface_state(self, iface, up=True):
-        """One-click port bring-up / shut-down.
+        """One-click port bring-up / shut-down, with verification.
 
         Bring-up DELETEs the native 'shutdown' presence leaf — the DevNet
         c8k sandbox rejects PATCH-create of the leaf (HTTP 400 '0: Internal
         error'), but DELETE is accepted. A 404 on the DELETE simply means
-        the leaf is already gone (interface already up)."""
+        the leaf is already gone (interface already admin-up). When the
+        interface is absent from the native RESTCONF model the CLI plane
+        is used instead. After the write the operational state is re-read
+        and the REAL outcome is reported: SVIs and unlinked ports stay
+        down (autostate — no L2 members / no peer) even when the admin
+        state is correct, so the UI must never claim 'is up' for them."""
 
         def fn():
             m = re.match(r"^([A-Za-z]+)(.+)$", str(iface or ""))
@@ -783,44 +838,102 @@ class Engine:
             path = (f"Cisco-IOS-XE-native:native/interface/"
                     f"{itype}={iname}/shutdown")
             _, rc = get_restconf_device(None)
+            applied = True
             if up:
                 try:
                     delete(rc, path)
+                    print(f"[RESTCONF] {iface} -> up (shutdown leaf removed)")
                 except RestconfError as e:
-                    if "404" not in str(e):
-                        raise
-                print(f"[RESTCONF] {iface} -> up (shutdown leaf removed)")
+                    if "404" in str(e):
+                        print(f"[RESTCONF] {iface} already admin-up "
+                              f"(no shutdown leaf)")
+                    else:
+                        print(f"[RESTCONF] {iface} not reachable in the native "
+                              f"model ({e}) — falling back to SSH CLI")
+                        ok_cli, _ = deploy_via_ssh(
+                            netmiko_params(load_devices()[0]),
+                            f"interface {iface}\nno shutdown")
+                        applied = bool(ok_cli)
             else:
-                patch(rc, path, {"shutdown": [None, True]})
-                print(f"[RESTCONF] {iface} -> down (shutdown leaf set)")
-            db.log_action("IFACE_STATE", "OK",
-                          f"{iface} {'up' if up else 'down'}",
-                          device=_dev_name())
-            return {"iface": iface, "up": bool(up)}
+                try:
+                    patch(rc, path, {"shutdown": [None, True]})
+                    print(f"[RESTCONF] {iface} -> down (shutdown leaf set)")
+                except RestconfError as e:
+                    print(f"[RESTCONF] {iface} shutdown leaf cannot be created "
+                          f"over RESTCONF ({e}) — falling back to SSH CLI")
+                    ok_cli, _ = deploy_via_ssh(
+                        netmiko_params(load_devices()[0]),
+                        f"interface {iface}\nshutdown")
+                    applied = bool(ok_cli)
+            state, admin = self._iface_oper_state(rc, iface)
+            if up:
+                ready = state == "if-oper-state-ready"
+                ok = ready
+                detail = ("" if ready else
+                          ("line down — no peer/cable (admin state applied)"
+                           if applied else "admin state could not be applied"))
+            else:
+                ok = admin == "if-state-down"
+                detail = "" if ok else "shutdown was not applied"
+            db.log_action("IFACE_STATE", "OK" if ok else "WARN",
+                          f"{iface} -> {state}", device=_dev_name())
+            return {"iface": iface, "up": bool(up), "ok": bool(ok),
+                    "state": state, "applied": bool(applied),
+                    "detail": detail}
 
         self._run("IFACE_STATE", fn)
 
+    def _iface_oper_state(self, rc, iface):
+        """Re-read one interface's oper/admin status after a write."""
+        try:
+            data = get(rc, "Cisco-IOS-XE-interfaces-oper:interfaces/interface="
+                           f"{iface.replace('/', '%2F')}", timeout=20)
+            entry = (data or {}).get(
+                "Cisco-IOS-XE-interfaces-oper:interface") or []
+            if isinstance(entry, dict):
+                entry = [entry]
+            first = entry[0] if entry else {}
+            return (str(first.get("oper-status") or "unknown"),
+                    str(first.get("admin-status") or "unknown"))
+        except RestconfError as e:
+            print(f"[RESTCONF] oper-state re-read failed for {iface}: {e}")
+            return "unknown", "unknown"
+
     def get_interface_config(self):
-        """Full interface configuration model (ietf-interfaces)."""
+        """Interface state for the ops bring-up tool (operational model).
+
+        Uses Cisco-IOS-XE-interfaces-oper so the down-list matches the
+        telemetry view exactly: ietf-interfaces only reports the config
+        'enabled' leaf (admin intent), which hides line-level outages —
+        an SVI like Vlan102 can be admin-up while oper-status is
+        lower-layer-down, and some interfaces (Vlan1104) are absent from
+        the ietf model entirely. The oper model is the superset and the
+        truth for the fabric state."""
 
         def fn():
             _, rc = get_restconf_device(None)
-            data = get(rc, "ietf-interfaces:interfaces")
+            data = get(rc, "Cisco-IOS-XE-interfaces-oper:interfaces")
             items = []
-            for e in (data.get("ietf-interfaces:interfaces", {}).get("interface")
-                      or []):
-                ip = ""
-                addrs = (((e.get("ipv4") or {}).get("address")) or [])
-                if addrs:
-                    ip = f"{addrs[0].get('address', '')}/{addrs[0].get('netmask', '')}"
+            for e in (data.get("Cisco-IOS-XE-interfaces-oper:interfaces",
+                               {}).get("interface") or []):
+                oper = str(e.get("oper-status") or "")
+                admin = str(e.get("admin-status") or "")
+                ready = "ready" in oper and admin == "if-state-up"
+                ip = e.get("ipv4") or ""
+                if isinstance(ip, dict):
+                    addrs = ip.get("addresses") or []
+                    ip = str(addrs[0].get("address", "")) if addrs else ""
                 items.append({
                     "name": e.get("name", "?"),
-                    "type": ((e.get("type") or "").split("/")[-1]) or "?",
-                    "enabled": "up" if e.get("enabled") else "down",
+                    "type": (str(e.get("interface-type") or "")
+                             .split(":")[-1] or "?"),
+                    "enabled": "up" if ready else "down",
+                    "state": oper.replace("if-oper-state-", ""),
+                    "admin": admin.replace("if-state-", ""),
                     "description": e.get("description", ""),
-                    "ip": ip,
+                    "ip": str(ip),
                 })
-            print(f"[RESTCONF] interface config -> {len(items)} interfaces")
+            print(f"[RESTCONF] interface state -> {len(items)} interfaces")
             return items
 
         self._run("IFACE_CONFIG", fn)

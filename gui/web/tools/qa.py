@@ -217,18 +217,22 @@ def main():
         page.click("button:has-text('REFRESH DOWN LIST')")
         page.wait_for_selector(".iface-down-row", timeout=6000)
         down0 = page.locator(".iface-down-row").count()
-        page.click(".iface-down-row .btn")
+        stuck0 = page.locator(".iface-down-row.stuck").count()
+        note0 = page.locator(".stuck-note").first.text_content() or ""
+        page.click(".iface-down-row:not(.stuck) .btn")
         page.wait_for_function(
             "document.querySelectorAll('.iface-down-row').length < %d" % down0, timeout=8000)
         down1 = page.locator(".iface-down-row").count()
         up_toast = any("is up" in t for t in (page.locator(".toast").all_text_contents() or []))
-        print(f"ops-ifaceup     ok  down0={down0} down1={down1} started={'ok' if down1 < down0 else 'no'} anim_toast={up_toast}")
+        print(f"ops-ifaceup     ok  down0={down0} down1={down1} stuck={stuck0} note={'autostate' in note0} started={'ok' if down1 < down0 else 'no'} anim_toast={up_toast}")
         if down0 < 1:
             errors.append(("ops", "down-interface menu empty"))
         if down1 >= down0:
             errors.append(("ops", "one-click start did not shrink the down list"))
         if not up_toast:
             errors.append(("ops", "bring-up success toast missing"))
+        if stuck0 < 1 or "autostate" not in note0:
+            errors.append(("ops", "stuck-interface explanation missing"))
 
         # ---- security audit console (mock) ----
         page.goto(f"{BASE_URL}?demo=1#audit", wait_until="networkidle")
@@ -432,10 +436,10 @@ def main():
         page.wait_for_selector(".dash-kpis")
         kpi_ok = page.locator(".dash-kpi").count() == 6
         gauge_ok = page.locator(".gauge-svg").count() >= 1
-        donut_ok = page.locator(".donut-svg").count() == 1
+        donut_ok = page.locator(".donut-svg").count() == 0  # audit-distribution donut removed
         svg_ok = page.locator(".chart-card svg").count() >= 4
         heat_ok = page.locator(".heat-cell").count() == 24
-        legend_ok = page.locator(".ch-legend").count() >= 3
+        legend_ok = page.locator(".ch-legend").count() >= 2
         area_ok = page.locator(".area-svg").count() == 1
         bars_ok = page.locator(".bars-svg").count() == 2
         tele_ok = page.locator("#tele-list .tele-row").count() >= 1
@@ -647,6 +651,58 @@ def main():
         page.wait_for_timeout(400)
         gone_ok = page.locator(".launch-ov").count() == 0
         print(f"provision-close  ok  overlay-gone={gone_ok}")
+
+        # ---- E2E: add-pc host registry flow (mock) ----
+        page.goto(f"{BASE_URL}?demo=1#provision", wait_until="networkidle")
+        page.reload()
+        page.wait_for_selector(".act-card", timeout=5000)
+        page.locator(".act-card:has-text('ADD PC')").click()
+        page.wait_for_selector("#pc-seg", timeout=5000)
+        page.wait_for_timeout(1400)  # scan + registry + telemetry resolve, auto-draft applies
+        reg_has_node_col = page.locator(".tbl th:has-text('NODE')").count() == 1
+        print(f"provision-addpc-registry  ok  node-col={reg_has_node_col} rows={page.locator('.tbl tbody tr').count()}")
+        page.locator(".card-head:has-text('HOST NODE')").first.click()
+        page.wait_for_selector("[data-key='pc_ip']", timeout=5000)
+        page.wait_for_timeout(400)
+        label = page.input_value("[data-key='site_name']")
+        ip = page.input_value("[data-key='pc_ip']")
+        port = page.input_value("[data-key='port']")
+        vlan = page.input_value("[data-key='vlan_id']")
+        gw = page.input_value("[data-key='gateway']")
+        draft_ok = bool(label) and bool(ip) and bool(port) and bool(vlan) and bool(gw)
+        hint_ok = page.locator("#pc-ip-hint").count() == 1 and "NEXT FREE" in page.locator("#pc-ip-hint").text_content()
+        print(f"provision-addpc-draft  ok  label={label} ip={ip} port={port} vlan={vlan} gw={gw} hint={hint_ok}")
+        page.click("#pc-draft")
+        page.wait_for_timeout(300)
+        dep_ok = not page.locator("#dep-go").is_disabled()
+        print(f"provision-addpc-dep  ok  enabled={dep_ok}")
+        page.locator("#pc-type-row .chip-sel[data-type='laptop']").click()
+        page.wait_for_timeout(200)
+        type_ok = page.locator("#pc-type-row .chip-sel.on").get_attribute("data-type") == "laptop"
+        print(f"provision-addpc-type  ok  laptop-chip={type_ok}")
+        page.click("#dep-go")
+        page.wait_for_selector(".launch-card", timeout=20000)
+        pc_card = page.locator(".launch-card:has-text('MISSION ACCOMPLISHED')").count() == 1
+        page.wait_for_timeout(300)
+        toasts2 = page.locator(".toast").all_text_contents()
+        print("toast2:", toasts2)
+        reg_ok = any("host registered" in t for t in toasts2)
+        if not (draft_ok and dep_ok and type_ok and reg_has_node_col and pc_card and reg_ok):
+            errors.append(("add-pc", f"draft={draft_ok} dep={dep_ok} type={type_ok} node-col={reg_has_node_col} card={pc_card} reg={reg_ok}"))
+        page.click(".launch-card .btn")
+        page.wait_for_timeout(400)
+
+        # ---- topology shows registered host nodes (mock: 2 seeded + 1 just added) ----
+        # hashchange navigation keeps the in-memory mock (no reload -> state preserved)
+        page.goto(f"{BASE_URL}?demo=1#topology", wait_until="networkidle")
+        page.wait_for_selector("button:has-text('FETCH LIVE MAP')", timeout=8000)
+        page.click("button:has-text('FETCH LIVE MAP')")
+        page.wait_for_timeout(3200)
+        hosts = page.locator(".topo-canvas-host .topo-node[data-host^='h-']").count()
+        host_roles = page.locator(".topo-canvas-host .n-tag:has-text('LAPTOP'), .topo-canvas-host .n-tag:has-text('PC')").count()
+        print(f"topology-hosts  ok  host-nodes={hosts} type-tags={host_roles}")
+        if not (hosts >= 3 and host_roles >= 3):
+            errors.append(("add-pc", f"topology host nodes missing: hosts={hosts} tags={host_roles}"))
 
         browser.close()
 

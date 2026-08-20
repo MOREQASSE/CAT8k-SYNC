@@ -549,9 +549,17 @@ class Api:
         elif action == "add_pc":
             if not _valid_ip(str(form.get("pc_ip", ""))):
                 errs["pc_ip"] = "Bad IPv4"
+            elif db.host_ip_taken(str(form.get("pc_ip", "")).strip()):
+                errs["pc_ip"] = "IP already registered"
+            nt = str(form.get("node_type") or "pc").strip().lower()
+            if nt not in ("pc", "laptop", "server", "printer", "phone"):
+                errs["node_type"] = "Type must be pc, laptop, server, printer or phone"
         return errs
 
     # ---------------- data endpoints ----------------
+
+    def hostRegistry(self):
+        return {"ok": True, "hosts": db.list_hosts(limit=100)}
 
     def series(self):
         out = {}
@@ -805,6 +813,26 @@ class Api:
                     })
             except (ValueError, KeyError, AttributeError):
                 pass
+        branch_vlans = {d.get("vlan") for d in devices if d.get("role") == "branch"}
+        for h in db.list_hosts(limit=100):
+            hid = f"h-{h['id']}"
+            node_type = (h.get("node_type") or "pc").strip().lower() or "pc"
+            devices.append({
+                "id": hid, "role": "host", "kind": node_type,
+                "hostname": h.get("label") or h.get("ip"),
+                "site": h.get("label") or "", "node_type": node_type,
+                "vlan": h.get("vlan_id") or 0, "ipv4": h.get("ip") or "",
+                "cidr": f"{h.get('ip')}/32" if h.get("ip") else "",
+                "subnet": h.get("subnet") or "", "iface": h.get("port") or "",
+                "state": "up", "up": True,
+                "meta": {"desc": f"registered {node_type} · {h.get('gateway') or ''}".strip()},
+            })
+            parent = f"br-{h.get('vlan_id')}" if h.get("vlan_id") in branch_vlans else "core"
+            links.append({
+                "id": f"{hid}-lnk", "from": parent, "to": hid,
+                "up": True, "state": "up",
+                "iface": h.get("port") or "", "vlan": h.get("vlan_id") or "",
+            })
         return {"center": center, "devices": devices, "links": links}
 
     def _topo_device(self, e):
@@ -1050,9 +1078,13 @@ class Api:
         errs = self.validate(form)
         if errs:
             return {"ok": False, "queued": False, "errors": errs}
-        self.engine.provision(form, dry_run=False)
-        return {"ok": True, "queued": True, "action": form["action"],
-                "site_name": form.get("site_name"), "vlan_id": form.get("vlan_id")}
+        try:
+            ok, detail = self.engine.provision_sync(form, dry_run=False)
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "queued": False, "detail": str(e)[:240]}
+        return {"ok": bool(ok), "queued": True, "action": form["action"],
+                "site_name": form.get("site_name"), "vlan_id": form.get("vlan_id"),
+                "pc_ip": form.get("pc_ip"), "detail": detail}
 
     def deleteSub(self, form):
         form = self._normalize(form)

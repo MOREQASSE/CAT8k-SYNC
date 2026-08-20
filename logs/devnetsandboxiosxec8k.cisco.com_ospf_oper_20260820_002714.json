@@ -1,0 +1,21 @@
+{
+  "Cisco-IOS-XE-ospf-oper:ospf-oper-data": {
+    "ospf-state": {
+      "op-mode": "ospf-ships-in-the-night",
+      "ospf-instance": [
+        {
+          "af": "address-family-ipv4",
+          "router-id": 556554262,
+          "process-id": 19
+        }
+      ]
+    },
+    "ospfv2-instance": [
+      {
+        "instance-id": 19,
+        "vrf-name": "",
+        "router-id": 556554262
+      }
+    ]
+  }
+}

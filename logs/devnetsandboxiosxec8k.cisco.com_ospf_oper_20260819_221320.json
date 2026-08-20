@@ -1,0 +1,130 @@
+{
+  "Cisco-IOS-XE-ospf-oper:ospf-oper-data": {
+    "ospf-state": {
+      "op-mode": "ospf-ships-in-the-night",
+      "ospf-instance": [
+        {
+          "af": "address-family-ipv4",
+          "router-id": 33686018,
+          "ospf-area": [
+            {
+              "area-id": 0,
+              "ospf-interface": [
+                {
+                  "name": "Loopback200",
+                  "network-type": "ospf-broadcast",
+                  "passive": true,
+                  "demand-circuit": false,
+                  "multi-area": {
+                    "multi-area-id": 0,
+                    "cost": 0
+                  },
+                  "node-flag": false,
+                  "fast-reroute": {
+                    "candidate-disabled": false,
+                    "enabled": false,
+                    "remote-lfa-enabled": false
+                  },
+                  "cost": 1,
+                  "hello-interval": 10,
+                  "dead-interval": 40,
+                  "retransmit-interval": 5,
+                  "transmit-delay": 1,
+                  "mtu-ignore": false,
+                  "lls": false,
+                  "prefix-suppression": false,
+                  "bfd": false,
+                  "ttl-security": {
+                    "enabled": false,
+                    "hops": 255
+                  },
+                  "enable": true,
+                  "authentication": {
+                    "no-auth": 1
+                  },
+                  "state": "Loopback",
+                  "hello-timer": 0,
+                  "wait-timer": 40,
+                  "dr": "0.0.0.0",
+                  "bdr": "0.0.0.0",
+                  "priority": 0
+                }
+              ]
+            }
+          ],
+          "process-id": 1
+        }
+      ]
+    },
+    "ospfv2-instance": [
+      {
+        "instance-id": 1,
+        "vrf-name": "",
+        "router-id": 33686018,
+        "ospfv2-area": [
+          {
+            "area-id": 0,
+            "ospfv2-lsdb-area": [
+              {
+                "lsa-type": 1,
+                "lsa-id": 33686018,
+                "advertising-router": 33686018,
+                "lsa-age": 1538,
+                "lsa-options": "",
+                "lsa-seq-number": 2147483657,
+                "lsa-checksum": 63668,
+                "lsa-length": 36,
+                "ospfv2-router-lsa-links": [
+                  {
+                    "link-type": 3,
+                    "link-id": 3232236033,
+                    "link-data": 4294967295
+                  }
+                ],
+                "router-lsa": {
+                  "router-lsa-bits": "",
+                  "router-lsa-number-links": 1
+                }
+              }
+            ],
+            "ospfv2-interface": [
+              {
+                "name": "Loopback200",
+                "network-type": "ospf-broadcast",
+                "enable": true,
+                "passive": true,
+                "demand-circuit": false,
+                "mtu-ignore": false,
+                "prefix-suppresion": false,
+                "cost": 1,
+                "hello-interval": 10,
+                "dead-interval": 40,
+                "retransmit-interval": 5,
+                "transmit-delay": 1,
+                "hello-timer": 0,
+                "wait-timer": 40000,
+                "dr": 0,
+                "bdr": 0,
+                "dr-ip": "0.0.0.0",
+                "bdr-ip": "0.0.0.0",
+                "state": "ospfv2-interface-state-loopback",
+                "ttl-security-val": {
+                  "enable": false,
+                  "hops": 255
+                },
+                "auth-val": {
+                  "no-auth": 1
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "instance-id": 19,
+        "vrf-name": "",
+        "router-id": 556554262
+      }
+    ]
+  }
+}

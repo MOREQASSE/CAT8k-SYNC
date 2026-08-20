@@ -123,6 +123,19 @@ CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS host_registry (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    node_type TEXT NOT NULL DEFAULT 'pc',
+    vlan_id INTEGER DEFAULT 0,
+    ip TEXT NOT NULL,
+    mask TEXT DEFAULT '',
+    port TEXT DEFAULT '',
+    gateway TEXT DEFAULT '',
+    subnet TEXT DEFAULT '',
+    device TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -137,6 +150,12 @@ def init():
     conn = connect()
     try:
         conn.executescript(_SCHEMA)
+        # migrate existing databases created before the node_type column
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(host_registry)")]
+        if "node_type" not in cols:
+            conn.execute(
+                "ALTER TABLE host_registry "
+                "ADD COLUMN node_type TEXT NOT NULL DEFAULT 'pc'")
         conn.commit()
     finally:
         conn.close()
@@ -152,7 +171,7 @@ def wipe_all():
     try:
         for t in ("users", "devices", "snapshot_history", "iface_history",
                   "telemetry_history", "audit_history", "drift_history",
-                  "actions_log", "events_log", "audit_ledger"):
+                  "actions_log", "events_log", "audit_ledger", "host_registry"):
             conn.execute(f"DELETE FROM {t}")
         conn.commit()
     finally:
@@ -699,6 +718,50 @@ def set_setting(key, value):
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             (key, str(value)))
         conn.commit()
+    finally:
+        conn.close()
+
+
+# ---------------------------------------------------------------- host registry
+
+def save_host(rec):
+    """Register a host node (add_pc action). Returns the new row id."""
+    conn = connect()
+    try:
+        ts = now()
+        cur = conn.execute(
+            """INSERT INTO host_registry
+               (label, node_type, vlan_id, ip, mask, port, gateway, subnet, device, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (str(rec.get("label") or ""),
+             str(rec.get("node_type") or "pc").strip().lower()[:16],
+             int(rec.get("vlan_id") or 0),
+             str(rec.get("ip") or ""), str(rec.get("mask") or ""),
+             str(rec.get("port") or ""), str(rec.get("gateway") or ""),
+             str(rec.get("subnet") or ""), str(rec.get("device") or ""), ts))
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def list_hosts(limit=100):
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM host_registry ORDER BY id DESC LIMIT ?",
+            (limit,)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def host_ip_taken(ip):
+    conn = connect()
+    try:
+        row = conn.execute("SELECT id FROM host_registry WHERE ip=?",
+                           (str(ip),)).fetchone()
+        return row is not None
     finally:
         conn.close()
 

@@ -175,7 +175,7 @@ const Charts = (() => {
     const X = (i) => (n === 1 ? P.l + iw / 2 : P.l + (i / (n - 1)) * iw);
     const Y = (v) => P.t + ih - ((v - min) / span) * ih;
 
-    const wrap = el("div", { class: "chart-wrap area-wrap", style: `height:${H}px` });
+    const wrap = el("div", { class: "chart-wrap area-wrap" });
     const box = tipFor(wrap);
 
     const { lines: grid, labels: yLbls } = yAxis(P, iw, ih, min, span, opts.unit, 3);
@@ -235,7 +235,7 @@ const Charts = (() => {
       tipHide(box);
     });
 
-    const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: "100%", class: "area-svg" }, [
+    const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, class: "area-svg" }, [
       sv("defs", {}, layers.map((L) => sv("linearGradient", { id: L.id, x1: 0, y1: 0, x2: 0, y2: 1 }, [
         sv("stop", { offset: 0, "stop-color": L.color, "stop-opacity": 0.32 }),
         sv("stop", { offset: 1, "stop-color": L.color, "stop-opacity": 0.01 }),
@@ -335,7 +335,7 @@ const Charts = (() => {
     const G = series.length;
     const slot = iw / n, bw = Math.max(2, Math.min(20, (slot * 0.62) / G));
 
-    const wrap = el("div", { class: "chart-wrap bars-wrap", style: `height:${H}px` });
+    const wrap = el("div", { class: "chart-wrap bars-wrap" });
     const box = tipFor(wrap);
 
     const { lines: grid, labels: yLbls } = yAxis(P, iw, ih, 0, max, opts.unit, 3);
@@ -358,7 +358,7 @@ const Charts = (() => {
       });
     });
 
-    wrap.append(sv("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: "100%", class: "bars-svg" },
+    wrap.append(sv("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, class: "bars-svg" },
       [...grid, ...groups.flat()]), ylbls);
     if (G > 1) wrap.append(legend(series));
     wrap.append(xtick);
@@ -374,7 +374,7 @@ const Charts = (() => {
     const W = 640, P = { l: 44, r: 14, t: 12, b: 6 };
     const iw = W - P.l - P.r, ih = H - P.t - P.b;
     const cw = iw / 24;
-    const wrap = el("div", { class: "chart-wrap heat-wrap", style: `height:${H}px` });
+    const wrap = el("div", { class: "chart-wrap heat-wrap" });
     const box = tipFor(wrap);
     const cellOf = (v) => {
       const t = v / max;
@@ -405,29 +405,56 @@ const Charts = (() => {
         xtick.append(sp);
       }
     }
-    wrap.append(sv("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: "100%", class: "heat-svg" }, cellsSvg));
+    wrap.append(sv("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, class: "heat-svg" }, cellsSvg));
     wrap.append(xtick);
     return wrap;
   }
 
   /* ------------------------------------------------------------ radial gauge
-     opts: { value, max=100, color, label, sub, h, unit, r } */
+     Speedometer: segmented semicircle arc. Every segment is stroked with a
+     direct rgb() colour interpolated red -> yellow -> green, filling from the
+     0 point up to the current score; the remainder stays an unfilled track.
+     A needle points at the score. opts: { value, max=100, label, sub, h,
+     unit, r } */
   function gauge(opts = {}) {
     const val = Math.max(0, Math.min(opts.max || 100, Number(opts.value) || 0));
     const max = opts.max || 100;
     const R = opts.r || 52, W = R * 2 + 30, H = opts.h || 120;
     const cx = W / 2, cy = R + 10;
-    const arc = Math.PI; /* semicircle */
-    const len = arc * R;
     const frac = val / max;
-    const dash = `${Math.max(frac * len - 2, 0.5)} ${len * 2}`;
+    const SEGS = R <= 30 ? 32 : 60, GAP = 0.018;
+    const RED = [239, 68, 68], YEL = [245, 158, 11], GRN = [16, 185, 129];
+    const cAt = (t) => {
+      const a = t < 0.5 ? RED : YEL, b = t < 0.5 ? YEL : GRN;
+      const k = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5;
+      const c = a.map((v, i) => Math.round(v + (b[i] - v) * k));
+      return `rgb(${c[0]},${c[1]},${c[2]})`;
+    };
+    const arcD = (a0, a1) => {
+      const x0 = cx + R * Math.cos(a0), y0 = cy - R * Math.sin(a0);
+      const x1 = cx + R * Math.cos(a1), y1 = cy - R * Math.sin(a1);
+      return `M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${R} ${R} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+    };
     const wrap = el("div", { class: "chart-wrap gauge-wrap" });
+    const step = Math.PI / SEGS;
+    const parts = [];
+    for (let i = 0; i < SEGS; i++) {
+      const t = (i + 0.5) / SEGS;                    /* segment centre 0..1 */
+      parts.push(sv("path", {
+        d: arcD(Math.PI - (i + 1) * step + GAP / 2, Math.PI - i * step - GAP / 2),
+        fill: "none",
+        stroke: t <= frac ? cAt(t) : "rgba(148,197,255,.1)",
+        "stroke-width": 11, "stroke-linecap": "round",
+      }));
+    }
+    const tip = Math.PI * (1 - frac);                /* score angle, left=0 */
     const svg = sv("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: "100%", class: "gauge-svg" }, [
-      sv("path", { d: `M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`, fill: "none",
-        stroke: "rgba(148,197,255,.1)", "stroke-width": 11, "stroke-linecap": "round" }),
-      sv("path", { d: `M ${cx - R} ${cy} A ${R} ${R} 0 0 1 ${cx + R} ${cy}`, fill: "none",
-        stroke: opts.color || "var(--teal)", "stroke-width": 11, "stroke-linecap": "round",
-        "stroke-dasharray": dash, "stroke-dashoffset": len, class: "ch-seg" }),
+      ...parts,
+      sv("line", { x1: cx, y1: cy,
+        x2: (cx + (R - 12) * Math.cos(tip)).toFixed(2),
+        y2: (cy - (R - 12) * Math.sin(tip)).toFixed(2),
+        stroke: "var(--cream)", "stroke-width": 2, "stroke-linecap": "round" }),
+      sv("circle", { cx, cy, r: 3.4, fill: "var(--cream)" }),
       ...(opts.max != null ? [0.25, 0.5, 0.75].map((t) => {
         const a = Math.PI * (1 - t);
         const x1 = cx + Math.cos(Math.PI - a) * (R + 7), y1 = cy - Math.sin(a) * (R + 7);
@@ -443,8 +470,10 @@ const Charts = (() => {
           el("div", { class: "gauge-sub", text: opts.label || "SCORE" }),
         ]),
       ]),
-      opts.sub ? el("div", { class: "gauge-foot", text: opts.sub }) : null,
     );
+    if (opts.sub) {
+      wrap.append(el("div", { class: "gauge-foot", text: opts.sub }));
+    }
     return wrap;
   }
 

@@ -275,6 +275,8 @@ body {
 .btn.ghost:hover { background: rgba(6, 182, 212, .08); border-color: var(--teal); }
 .btn.ghost.gray { color: var(--muted); }
 .btn.ghost.gray:hover { color: var(--ink); border-color: var(--muted); background: rgba(100, 116, 139, .1); }
+.btn.ghost.green { color: var(--green); }
+.btn.ghost.green:hover { background: rgba(16, 185, 129, .1); border-color: var(--green); color: var(--green); }
 
 /* ------------------------------------------------------------ layout + cards */
 .view-host { overflow: auto; padding: 20px 24px 26px; position: relative; }
@@ -1040,6 +1042,18 @@ body {
   animation: badge-pop .5s cubic-bezier(.34, 1.56, .64, 1);
 }
 .up-badge svg { animation: badge-ring 1s ease-out .35s infinite; }
+.iface-down-row.stuck {
+  border-color: rgba(250, 204, 21, .28); background: rgba(250, 204, 21, .05);
+}
+.iface-down-row.stuck:hover {
+  border-color: rgba(250, 204, 21, .42); background: rgba(250, 204, 21, .08);
+}
+.iface-down-row.stuck .btn { opacity: .5; pointer-events: none; }
+.stuck-note {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 1;
+  color: var(--yellow); font-size: 12px; line-height: 1.35; min-width: 0;
+}
+.stuck-note svg { flex-shrink: 0; }
 @keyframes badge-pop {
   0% { transform: scale(.3); opacity: 0; }
   60% { transform: scale(1.18); opacity: 1; }
@@ -1127,6 +1141,8 @@ body {
   font-family: var(--font-mono); font-size: 9px; letter-spacing: .15em; color: var(--muted);
   display: inline-block; vertical-align: middle;
 }
+.win-chips { margin-left: 8px; }
+.win-chips .seg-btn { padding: 4px 9px; font-size: 9px; letter-spacing: .1em; }
 .chips-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .chip-sel {
   display: inline-flex; align-items: center; gap: 8px;

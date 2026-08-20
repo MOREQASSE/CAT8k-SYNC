@@ -45,24 +45,43 @@ const Topo = (() => {
     switch:  { up: "network-switch-sucess-tick-beside", warn: "network-switch-with-warning-beside", down: "network-switch-with-warning-beside" },
     server:  { up: "server-sucess-tick", warn: "server-error-cross", down: "server-error-cross" },
     endpoint:{ up: "cartoon-laptop-terminal", warn: "isometric-desktop-computer", down: "isometric-desktop-computer" },
+    pc:      { up: "sprite-pc-case", warn: "sprite-pc-case", down: "sprite-pc-case" },
+    laptop:  { up: "sprite-laptop", warn: "sprite-laptop", down: "sprite-laptop" },
+    printer: { up: "sprite-printer", warn: "sprite-printer", down: "sprite-printer" },
+    phone:   { up: "sprite-smartphone", warn: "sprite-smartphone", down: "sprite-smartphone" },
   };
   const ICON_BOX = {
     router: [58, 44], cloud: [56, 42], network: [56, 40],
     switch: [56, 40], server: [64, 36], endpoint: [46, 44],
+    pc: [44, 44], laptop: [48, 44], printer: [44, 44], phone: [40, 44],
   };
-  const NEEDED = [...new Set(Object.values(CUSTOM).flatMap((v) => Object.values(v)))];
+  const NEEDED = [...new Set(Object.values(CUSTOM).flatMap((v) => Object.values(v)))]
+    .filter((id) => !id.startsWith("sprite-"));
+  const SPRITE_NEEDED = ["pc-case", "laptop", "printer", "smartphone"];
 
   /* ---------- icon bank: inline gui/icons svgs into a hidden <symbol> bank ---------- */
   let iconBank = null;
   function load() {
     if (iconBank) return iconBank;
-    iconBank = Promise.all(NEEDED.map(async (id) => {
-      try {
-        const r = await fetch("cust-icons/" + id + ".svg");
-        if (!r.ok) return null;
-        return { id, svg: await r.text() };
-      } catch (e) { return null; }
-    })).then((items) => {
+    iconBank = Promise.all([
+      Promise.all(NEEDED.map(async (id) => {
+        try {
+          const r = await fetch("cust-icons/" + id + ".svg");
+          if (!r.ok) return null;
+          return { id, svg: await r.text() };
+        } catch (e) { return null; }
+      })),
+      fetch("icons/sprite.svg").then(async (r) => {
+        if (!r.ok) return [];
+        const tmp = document.createElement("div");
+        tmp.innerHTML = await r.text();
+        return SPRITE_NEEDED.map((id) => {
+          const s = tmp.querySelector(`symbol#${id}`);
+          if (!s) return null;
+          return { id: "sprite-" + id, svg: s.outerHTML };
+        });
+      }).catch(() => []),
+    ]).then(([items, sprites]) => {
       let bank = document.getElementById("cust-icon-bank");
       if (!bank) {
         bank = document.createElementNS(NS, "svg");
@@ -70,11 +89,11 @@ const Topo = (() => {
         bank.setAttribute("style", "position:absolute;width:0;height:0;overflow:hidden");
         document.body.appendChild(bank);
       }
-      for (const it of items) {
+      for (const it of [...items, ...sprites]) {
         if (!it) continue;
         const tmp = document.createElement("div");
         tmp.innerHTML = it.svg;
-        const src = tmp.querySelector("svg");
+        const src = tmp.querySelector("svg") || tmp.querySelector("symbol");
         if (!src) continue;
         const sym = document.createElementNS(NS, "symbol");
         sym.setAttribute("id", "cust-" + it.id);
@@ -97,6 +116,7 @@ const Topo = (() => {
   function tier(d) {
     if (d.role === "wan") return 0;
     if (d.role === "branch") return 1;
+    if (d.role === "host") return 3;
     return 2; // loop / port / misc
   }
 
@@ -104,6 +124,11 @@ const Topo = (() => {
     if (t === 0) return { x: CX, y: CY - 330 };                          // wan uplink, top
     if (t === 1) {                                                          // outer branch arc
       const rx = 320 + 12 * n, ry = 205;
+      const a = Math.PI - Math.PI * (i + 0.5) / Math.max(n, 1);
+      return { x: CX + Math.cos(a) * rx, y: CY + Math.sin(a) * ry };
+    }
+    if (t === 3) {                                                          // inner host arc
+      const rx = 210 + 8 * n, ry = 150;
       const a = Math.PI - Math.PI * (i + 0.5) / Math.max(n, 1);
       return { x: CX + Math.cos(a) * rx, y: CY + Math.sin(a) * ry };
     }
@@ -115,12 +140,13 @@ const Topo = (() => {
     return { x: xs[col], y: ys[row] };
   }
 
-  function rad(d) { return d.role === "wan" ? 26 : d.role === "branch" ? 30 : 24; }
+  function rad(d) { return d.role === "wan" ? 26 : d.role === "branch" ? 30 : d.role === "host" ? 22 : 24; }
 
   function subLabel(d) {
     if (d.role === "wan") return "WAN UPLINK\n" + (d.cidr || d.iface || "ISP");
     if (d.role === "branch") return [d.cidr, d.site, d.vlan ? "VL" + d.vlan : ""].filter(Boolean).join(" · ");
     if (d.role === "loop") return "MGMT · " + (d.cidr || "ROUTER ID");
+    if (d.role === "host") return [d.ipv4, d.vlan ? "VL" + d.vlan : ""].filter(Boolean).join(" · ");
     return (d.state || "up").toUpperCase() + (d.cidr ? " · " + d.cidr : "");
   }
 
@@ -133,6 +159,7 @@ const Topo = (() => {
     if (d.role === "wan") return "INTERNET";
     if (d.role === "loop") return "LOOPBACK";
     if (d.role === "branch") return "BRANCH LAN";
+    if (d.role === "host") return String(d.node_type || "endpoint").toUpperCase();
     if (d.kind === "switch") return "SWITCH";
     if (d.kind === "endpoint") return "ENDPOINT";
     return st.toUpperCase();
@@ -196,10 +223,10 @@ const Topo = (() => {
     }, [svgEl("path", { d: "M0,0 L8,4 L0,8", class: "topo-arrow-p" })])]));
 
     /* coordinates for every node */
-    const spots = { 0: [], 1: [], 2: [] };
+    const spots = { 0: [], 1: [], 2: [], 3: [] };
     devices.forEach((d) => spots[tier(d)].push(d));
     posById[center.id || "core"] = { x: CX, y: CY };
-    for (const t of [0, 1, 2]) spots[t].forEach((d, i) => { posById[d.id] = place(d, i, spots[t].length, t); });
+    for (const t of [0, 1, 2, 3]) spots[t].forEach((d, i) => { posById[d.id] = place(d, i, spots[t].length, t); });
 
     /* ---- link lines (re-wired live while dragging) ---- */
     edges.forEach((e) => {

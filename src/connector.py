@@ -10,7 +10,13 @@ from netmiko import (
 from src import db
 
 
-NON_NETMIKO_KEYS = {"name", "description"}
+NON_NETMIKO_KEYS = {
+    "name",
+    "description",
+    "restconf_https",
+    "restconf_verify_ssl",
+    "restconf_port",
+}
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 _warned = False

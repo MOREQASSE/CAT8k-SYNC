@@ -249,6 +249,8 @@ const API = (() => {
         { id: "br-120", role: "branch", kind: "network", hostname: "BR-120", site: "ANNABA", up: false, state: "down", vlan: 120, ipv4: "10.1.120.1", cidr: "10.1.120.1/24", subnet: "10.1.120.0/24", iface: "GigabitEthernet0/0/6.120", meta: { speed: "1 Gbps", duplex: "full", mtu: "1500" } },
         { id: "br-130", role: "branch", kind: "network", hostname: "BR-130", site: "TLEMCEN", up: true, state: "up", vlan: 130, ipv4: "10.1.130.1", cidr: "10.1.130.1/24", subnet: "10.1.130.0/24", iface: "GigabitEthernet0/0/6.130", meta: { speed: "1 Gbps", duplex: "full", mtu: "1500" } },
         { id: "br-140", role: "branch", kind: "network", hostname: "BR-140", site: "BEJAIA", up: true, state: "up", vlan: 140, ipv4: "10.1.140.1", cidr: "10.1.140.1/24", subnet: "10.1.140.0/24", iface: "GigabitEthernet0/0/6.140", meta: { speed: "1 Gbps", duplex: "full", mtu: "1500" } },
+        { id: "h-1", role: "host", kind: "pc", node_type: "pc", hostname: "RECEPTION-PC", site: "RECEPTION-PC", up: true, state: "up", vlan: 100, ipv4: "10.1.100.10", cidr: "10.1.100.10/32", subnet: "10.1.100.0/24", iface: "Gi0/0/6.100", meta: { desc: "registered pc" } },
+        { id: "h-2", role: "host", kind: "laptop", node_type: "laptop", hostname: "COMPTA-PC", site: "COMPTA-PC", up: true, state: "up", vlan: 110, ipv4: "10.1.110.12", cidr: "10.1.110.12/32", subnet: "10.1.110.0/24", iface: "Gi0/0/6.110", meta: { desc: "registered laptop" } },
       ],
       links: [
         { id: "c-wan", from: "core", to: "wan", up: true, state: "up", iface: "GigabitEthernet1" },
@@ -257,6 +259,8 @@ const API = (() => {
         { id: "c-br-120", from: "core", to: "br-120", up: false, state: "down", vlan: 120 },
         { id: "c-br-130", from: "core", to: "br-130", up: true, state: "up", vlan: 130 },
         { id: "c-br-140", from: "core", to: "br-140", up: true, state: "up", vlan: 140 },
+        { id: "h-1-lnk", from: "br-100", to: "h-1", up: true, state: "up", iface: "Gi0/0/6.100", vlan: 100 },
+        { id: "h-2-lnk", from: "br-110", to: "h-2", up: true, state: "up", iface: "Gi0/0/6.110", vlan: 110 },
       ],
     },
     _telemetry: {
@@ -338,6 +342,10 @@ const API = (() => {
       },
       raw: '{"Cisco-IOS-XE-interfaces-oper:interfaces": {"interface": [...]}}',
     },
+    _hosts_reg: [
+      { id: 1, label: "RECEPTION-PC", node_type: "pc", vlan_id: 100, ip: "10.1.100.10", mask: "255.255.255.0", port: "Gi0/0/6.100", gateway: "10.1.100.1", subnet: "10.1.100.0/24", device: "cat8000-public", created_at: "2026-08-10 11:02:44" },
+      { id: 2, label: "COMPTA-PC", node_type: "laptop", vlan_id: 110, ip: "10.1.110.12", mask: "255.255.255.0", port: "Gi0/0/6.110", gateway: "10.1.110.1", subnet: "10.1.110.0/24", device: "cat8000-public", created_at: "2026-08-11 09:31:18" },
+    ],
     _logs: [
       { ts: "2026-08-06 09:11:58", level: "OK", source: "SNIFFER", msg: "polled telemetry — 12 interfaces / 4 neighbours" },
       { ts: "2026-08-06 09:02:14", level: "SYS", source: "VAULT", msg: "key rotated — fernet 256bit" },
@@ -394,11 +402,11 @@ const API = (() => {
       { pn: "GLC-T", sn: "FTX1905T1AA", desc: "10/100/1000BASE-T SFP Module" },
     ],
     _ifaceConfig: [
-      { name: "GigabitEthernet0/0/0", type: "ethernetCsmacd", enabled: "up", description: "WAN uplink", ip: "10.0.0.1/255.255.255.0" },
-      { name: "GigabitEthernet0/0/1", type: "ethernetCsmacd", enabled: "down", description: "", ip: "" },
-      { name: "GigabitEthernet0/0/2", type: "ethernetCsmacd", enabled: "down", description: "spare access port", ip: "" },
-      { name: "GigabitEthernet0/0/3", type: "ethernetCsmacd", enabled: "down", description: "", ip: "" },
-      { name: "Loopback0", type: "softwareLoopback", enabled: "up", description: "management", ip: "10.1.1.1/255.255.255.0" },
+      { name: "GigabitEthernet0/0/0", type: "ethernetCsmacd", enabled: "up", admin: "up", state: "ready", description: "WAN uplink", ip: "10.0.0.1/255.255.255.0" },
+      { name: "GigabitEthernet0/0/1", type: "ethernetCsmacd", enabled: "down", admin: "down", state: "down", description: "", ip: "" },
+      { name: "GigabitEthernet0/0/2", type: "ethernetCsmacd", enabled: "down", admin: "up", state: "lower-layer-down", description: "spare access port", ip: "" },
+      { name: "GigabitEthernet0/0/3", type: "ethernetCsmacd", enabled: "down", admin: "up", state: "lower-layer-down", description: "", ip: "" },
+      { name: "Loopback0", type: "softwareLoopback", enabled: "up", admin: "up", state: "ready", description: "management", ip: "10.1.1.1/255.255.255.0" },
     ],
     _fields: {
       site_name: { required: true, type: "text", max: 24, pattern: "^[A-Za-z0-9_-]{1,32}$" },
@@ -456,8 +464,41 @@ const API = (() => {
           site: form.site_name, subnet: form.department_subnet,
           ipv4: form.gateway, status: "up", uptime: 0,
         });
+      } else if (form.action === "add_pc") {
+        const ntype = (form.node_type || "pc").toLowerCase();
+        const hid = mock._hosts_reg.length + 1;
+        mock._hosts_reg.push({
+          id: hid,
+          label: form.site_name,
+          node_type: ntype,
+          vlan_id: Number(form.vlan_id),
+          ip: form.pc_ip,
+          mask: form.mask || "255.255.255.0",
+          port: form.port || "—",
+          gateway: form.gateway || "—",
+          subnet: form.subnet || "",
+          device: "cat8000-public",
+          created_at: new Date().toISOString().slice(0, 19).replace("T", " "),
+        });
+        const hdev = {
+          id: "h-" + hid, role: "host", kind: ntype, node_type: ntype,
+          hostname: form.site_name, site: form.site_name,
+          up: true, state: "up", vlan: Number(form.vlan_id),
+          ipv4: form.pc_ip, cidr: form.pc_ip + "/32", subnet: form.subnet || "",
+          iface: form.port || "", meta: { desc: "registered " + ntype },
+        };
+        mock._topology.devices.push(hdev);
+        const hasBr = (mock._topology.devices || []).some((d) => d.role === "branch" && d.vlan === Number(form.vlan_id));
+        mock._topology.links.push({
+          id: hdev.id + "-lnk", from: hasBr ? "br-" + form.vlan_id : "core", to: hdev.id,
+          up: true, state: "up", iface: form.port || "", vlan: Number(form.vlan_id),
+        });
+        mock._logs.push({
+          ts: new Date().toISOString().slice(0, 19).replace("T", " "),
+          level: "OK", source: "PROVISION", msg: `host registered ${form.site_name} ${form.pc_ip} (${ntype})`,
+        });
       }
-      return { ok: true, action: form.action, site_name: form.site_name, vlan_id: form.vlan_id };
+      return { ok: true, action: form.action, site_name: form.site_name, vlan_id: form.vlan_id, pc_ip: form.pc_ip };
     },
     deleteSub: async (form) => {
       await delay(700);
@@ -496,6 +537,7 @@ const API = (() => {
       return mock._health;
     },
     inventory: async () => { await delay(1000); return mock._inventory; },
+    hostRegistry: async () => { await delay(500); return { ok: true, hosts: mock._hosts_reg }; },
     getHostname: async () => { await delay(700); return mock._hostname; },
     ifaceConfig: async () => { await delay(1100); return mock._ifaceConfig; },
     setHostname: async (name) => {
@@ -518,12 +560,19 @@ const API = (() => {
     setIfaceState: async (iface, up) => {
       await delay(700);
       const it = mock._ifaceConfig.find((x) => x.name === iface);
-      if (it) it.enabled = up ? "up" : "down";
+      if (it) {
+        it.enabled = up ? "up" : "down";
+        it.admin = up ? "up" : "down";
+        it.state = up ? "ready" : "down";
+      }
       mock._logs.push({
         ts: new Date().toISOString().slice(0, 19).replace("T", " "),
         level: "OK", source: "IFACE_STATE", msg: `${iface} -> ${up ? "up" : "down"}`,
       });
-      return { ok: true, iface, up: !!up };
+      return {
+        ok: true, iface, up: !!up, applied: true, detail: "",
+        state: up ? "if-oper-state-ready" : "if-oper-state-down",
+      };
     },
     snapshot: async () => { await delay(1200); return { ok: true, saved_at: "2026-08-06 09:12", note: "baseline captured" }; },
     drift: async () => { await delay(1500); return {
@@ -945,6 +994,7 @@ const API = (() => {
     topology: () => call("topology", []),
     topologyRaw: () => call("topologyRaw", []),
     hosts: () => call("hosts", []),
+    hostRegistry: () => call("hostRegistry", []),
     telemetry: (kind) => call("telemetry", [kind]),
     collectTelemetry: (kind) => call("collectTelemetry", [kind]),
     health: () => call("health", []),

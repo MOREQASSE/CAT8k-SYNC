@@ -1,0 +1,978 @@
+{
+  "Cisco-IOS-XE-native:native": {
+    "version": "17.15",
+    "boot-start-marker": [
+      null
+    ],
+    "boot-end-marker": [
+      null
+    ],
+    "banner": {
+      "motd": {
+        "banner": "\nManaged by Ansible - Lab 7\n"
+      }
+    },
+    "memory": {
+      "free": {
+        "low-watermark": {
+          "processor": 204144
+        }
+      }
+    },
+    "service": {
+      "password-encryption": [
+        null
+      ],
+      "timestamps": {
+        "debug-config": {
+          "datetime": {
+            "msec": [
+              null
+            ]
+          }
+        },
+        "log-config": {
+          "datetime": {
+            "msec": [
+              null
+            ]
+          }
+        }
+      }
+    },
+    "platform": {
+      "Cisco-IOS-XE-platform:console": {
+        "output": "virtual"
+      },
+      "Cisco-IOS-XE-platform:qfp": {
+        "utilization": {
+          "monitor": {
+            "load": 80
+          }
+        }
+      },
+      "Cisco-IOS-XE-platform:sslvpn": {
+        "use-pd": [
+          null
+        ]
+      }
+    },
+    "hostname": "cat8k",
+    "enable": {
+      "password": {
+        "type": "7",
+        "secret": "143443180F0B7B79777C66"
+      },
+      "secret": {
+        "type": "9",
+        "secret": "$9$QFKir/5RZtFBuk$J8E4iGPu/85pKFwChUkcm1Gz0fsTmjE8eT9bqit4YM2"
+      }
+    },
+    "username": [
+      {
+        "name": "admin",
+        "privilege": 15,
+        "secret": {
+          "encryption": "9",
+          "secret": "$9$xfJaj985/31C8k$4zR/SzPia87KuG0p9XZIrcS31V8i4skDuWbK/3HmU/Q"
+        }
+      }
+    ],
+    "vrf": {
+      "definition": [
+        {
+          "name": "Mgmt-vrf",
+          "address-family": {
+            "ipv4": {},
+            "ipv6": {}
+          }
+        }
+      ]
+    },
+    "flow": {
+      "Cisco-IOS-XE-flow:record": [
+        {
+          "name": "NETFLOW-RECORD",
+          "collect": {
+            "counter": {
+              "bytes": {
+                "long": [
+                  null
+                ]
+              },
+              "packets": {
+                "long": [
+                  null
+                ]
+              }
+            },
+            "timestamp": {
+              "sys-uptime": {
+                "first": [
+                  null
+                ],
+                "last": [
+                  null
+                ]
+              }
+            }
+          },
+          "match": {
+            "transport": {
+              "destination-port": [
+                null
+              ]
+            }
+          }
+        },
+        {
+          "name": "PrimeNFRec",
+          "collect": {
+            "application": {
+              "name": {}
+            },
+            "counter": {
+              "bytes": {
+                "long": [
+                  null
+                ]
+              },
+              "packets": {
+                "long": [
+                  null
+                ]
+              }
+            },
+            "interface": {
+              "output": {}
+            },
+            "timestamp": {
+              "absolute": {
+                "first": [
+                  null
+                ],
+                "last": [
+                  null
+                ]
+              },
+              "sys-uptime": {
+                "first": [
+                  null
+                ],
+                "last": [
+                  null
+                ]
+              }
+            },
+            "transport": {
+              "tcp": {
+                "flags": {}
+              }
+            }
+          },
+          "match": {
+            "interface": {
+              "input": {}
+            },
+            "ipv4": {
+              "destination": {
+                "address": [
+                  null
+                ]
+              },
+              "protocol": [
+                null
+              ],
+              "source": {
+                "address": [
+                  null
+                ]
+              },
+              "tos": [
+                null
+              ]
+            },
+            "transport": {
+              "destination-port": [
+                null
+              ],
+              "source-port": [
+                null
+              ]
+            }
+          }
+        }
+      ],
+      "Cisco-IOS-XE-flow:exporter": [
+        {
+          "name": "AuvikFExp",
+          "description": "Desc",
+          "destination": {
+            "ipdest": {
+              "ip": "10.18.105.65"
+            }
+          },
+          "option": {
+            "application-table": {
+              "timeout": 60
+            }
+          },
+          "source": {
+            "Vlan": 1104
+          },
+          "transport": {
+            "udp": 2055
+          }
+        },
+        {
+          "name": "NetFlow-Collector",
+          "destination": {
+            "ipdest": {
+              "ip": "10.230.0.7"
+            }
+          },
+          "option": {
+            "interface-table": {
+              "timeout": 60
+            }
+          },
+          "template": {
+            "data": {
+              "timeout": 60
+            }
+          }
+        },
+        {
+          "name": "PrimeNFExp",
+          "description": "Export to Prime"
+        }
+      ],
+      "Cisco-IOS-XE-flow:monitor": [
+        {
+          "name": "NMSNFMon",
+          "description": "Cache for NMS Flows"
+        },
+        {
+          "name": "PrimeNF",
+          "cache": {
+            "timeout": {
+              "active": 70
+            }
+          },
+          "description": "Cache for Prime Flows"
+        }
+      ]
+    },
+    "ip": {
+      "domain": {
+        "lookup": false,
+        "name-container": {
+          "name-no-vrf": "CAT8k-SYNC.local"
+        },
+        "name": "CAT8k-SYNC.local"
+      },
+      "default-gateway": "10.10.20.254",
+      "forward-protocol-v2": {
+        "nd": true,
+        "udp": {}
+      },
+      "forward-protocol": {
+        "protocol": "nd"
+      },
+      "name-server": {
+        "no-vrf-ordered": [
+          "10.27.20.51",
+          "10.1.20.51",
+          "10.18.105.34",
+          "10.18.105.35",
+          "10.18.105.36",
+          "10.18.105.37"
+        ],
+        "no-vrf": [
+          "10.18.105.37",
+          "10.18.105.36",
+          "10.18.105.35",
+          "10.18.105.34",
+          "10.1.20.51",
+          "10.27.20.51"
+        ]
+      },
+      "prefix-lists": {
+        "prefixes": [
+          {
+            "name": "TESTabc",
+            "no": 18,
+            "action": "deny",
+            "ip": "2.2.2.0/24",
+            "ge": 26
+          }
+        ]
+      },
+      "route": {
+        "ip-route-interface-forwarding-list": [
+          {
+            "prefix": "0.0.0.0",
+            "mask": "0.0.0.0",
+            "fwd-list": [
+              {
+                "fwd": "10.10.20.254"
+              }
+            ]
+          }
+        ]
+      },
+      "ssh": {
+        "version": 2,
+        "bulk-mode": {
+          "window-size": 131072
+        }
+      },
+      "tcp": {
+        "ack-tuning": {},
+        "RST-config": {
+          "RST-count": 10,
+          "RST-window": 5000
+        }
+      },
+      "access-list": {
+        "Cisco-IOS-XE-acl:extended": [
+          {
+            "name": "Pod10-Testing",
+            "access-list-seq-rule": [
+              {
+                "sequence": "5",
+                "ace-rule": {
+                  "action": "permit",
+                  "protocol": "udp",
+                  "host-address": "198.51.100.1",
+                  "host": "198.51.100.1",
+                  "dst-host-address": "203.0.113.2",
+                  "dst-host": "203.0.113.2",
+                  "dst-eq": 123
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "Cisco-IOS-XE-http:http": {
+        "authentication": {
+          "local": [
+            null
+          ]
+        },
+        "server": true,
+        "secure-server": true
+      },
+      "Cisco-IOS-XE-nat:nat": {
+        "inside": {
+          "source": {
+            "list-interface": {
+              "list": [
+                {
+                  "id": "NAT-ACL",
+                  "interface": [
+                    {
+                      "name": "GigabitEthernet1",
+                      "overload-new": [
+                        null
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "service": {
+          "gatekeeper": [
+            null
+          ]
+        }
+      }
+    },
+    "interface": {
+      "GigabitEthernet": [
+        {
+          "name": "1",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.10.20.148",
+                "mask": "255.255.255.0"
+              }
+            },
+            "Cisco-IOS-XE-nat:nat": {
+              "outside": [
+                null
+              ]
+            }
+          },
+          "Cisco-IOS-XE-ethernet:negotiation": {
+            "auto": true
+          }
+        },
+        {
+          "name": "1.100",
+          "description": "MP1 mp1",
+          "encapsulation": {
+            "dot1Q": {
+              "vlan-id": 100
+            }
+          },
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.1.150.1",
+                "mask": "255.255.255.0"
+              }
+            }
+          }
+        },
+        {
+          "name": "2",
+          "Cisco-IOS-XE-ethernet:negotiation": {
+            "auto": true
+          }
+        },
+        {
+          "name": "3",
+          "Cisco-IOS-XE-ethernet:negotiation": {
+            "auto": true
+          }
+        }
+      ],
+      "Loopback": [
+        {
+          "name": 10,
+          "description": "Shared Loopback10 - Management",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.10.10.1",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 11,
+          "description": "Shared Loopback11 - Monitoring",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.10.11.1",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 12,
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.99.99.98",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 18,
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "99.99.99.99",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 20,
+          "description": "Shared loopback managed by Ansible",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.20.20.20",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 21,
+          "description": "Shared loopback managed by Ansible",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.21.21.21",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 22,
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "22.22.22.1",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 80,
+          "description": "Host-specific loopback managed by Ansible",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.80.80.1",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 81,
+          "description": "Host-specific loopback managed by Ansible",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.81.81.1",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 100,
+          "description": "Cat8k Loopback100 - Device Specific",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.100.100.1",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 101,
+          "description": "Cat8k Loopback101 - Device Specific",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.100.101.1",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        },
+        {
+          "name": 200,
+          "description": "test",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "192.168.2.1",
+                "mask": "255.255.255.255"
+              }
+            }
+          }
+        }
+      ],
+      "Vlan": [
+        {
+          "name": 102,
+          "description": "kumorai-vlan",
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "10.2.1.1",
+                "mask": "255.255.255.0"
+              }
+            }
+          }
+        }
+      ],
+      "VirtualPortGroup": [
+        {
+          "name": 0,
+          "ip": {
+            "address": {
+              "primary": {
+                "address": "192.168.1.1",
+                "mask": "255.255.255.0"
+              }
+            },
+            "Cisco-IOS-XE-nat:nat": {
+              "inside": [
+                null
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "control-plane": {},
+    "logging": {
+      "host": {
+        "ipv4-host-list": [
+          {
+            "ipv4-host": "192.0.2.100"
+          },
+          {
+            "ipv4-host": "192.168.1.100"
+          }
+        ]
+      },
+      "hostip": "192.0.2.100"
+    },
+    "aaa": {
+      "Cisco-IOS-XE-aaa:new-model": [
+        null
+      ],
+      "Cisco-IOS-XE-aaa:group": {
+        "server": {
+          "tacacsplus": [
+            {
+              "name": "labtac",
+              "server": {
+                "name": [
+                  {
+                    "name": "sandboxtacacs"
+                  }
+                ]
+              },
+              "ip": {
+                "tacacs": {
+                  "source-interface": {
+                    "GigabitEthernet": "1"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "Cisco-IOS-XE-aaa:authentication": {
+        "login": [
+          {
+            "name": "default",
+            "a1": {
+              "group": "labtac"
+            },
+            "a2": {
+              "local": [
+                null
+              ]
+            }
+          },
+          {
+            "name": "netconf-authn",
+            "a1": {
+              "group": "labtac"
+            },
+            "a2": {
+              "local": [
+                null
+              ]
+            }
+          }
+        ]
+      },
+      "Cisco-IOS-XE-aaa:authorization": {
+        "commands": [
+          {
+            "level": 1,
+            "list-name": "default",
+            "a1": {
+              "group": "labtac"
+            },
+            "a2": {
+              "local": [
+                null
+              ]
+            },
+            "a3": {
+              "if-authenticated": [
+                null
+              ]
+            },
+            "group": "labtac",
+            "if-authenticated": [
+              null
+            ]
+          },
+          {
+            "level": 15,
+            "list-name": "default",
+            "a1": {
+              "group": "labtac"
+            },
+            "a2": {
+              "local": [
+                null
+              ]
+            },
+            "a3": {
+              "if-authenticated": [
+                null
+              ]
+            },
+            "group": "labtac",
+            "if-authenticated": [
+              null
+            ]
+          }
+        ],
+        "exec": [
+          {
+            "name": "default",
+            "a1": {
+              "group": "labtac"
+            },
+            "a2": {
+              "local": [
+                null
+              ]
+            },
+            "a3": {
+              "if-authenticated": [
+                null
+              ]
+            }
+          },
+          {
+            "name": "netconf-authz",
+            "a1": {
+              "group": "labtac"
+            },
+            "a2": {
+              "local": [
+                null
+              ]
+            }
+          }
+        ]
+      },
+      "Cisco-IOS-XE-aaa:session-id": "common"
+    },
+    "login": {
+      "on-success": {
+        "log": {}
+      }
+    },
+    "redundancy": {},
+    "subscriber-config": {
+      "template-config": {
+        "templating": true
+      }
+    },
+    "subscriber": {
+      "templating": [
+        null
+      ]
+    },
+    "tacacs": {
+      "Cisco-IOS-XE-aaa:server": [
+        {
+          "name": "sandboxtacacs",
+          "address": {
+            "ipv4": "10.17.248.43"
+          },
+          "key": {
+            "encryption": "7",
+            "key": "030D480E050E351445"
+          }
+        }
+      ]
+    },
+    "tacacs-server": {
+      "Cisco-IOS-XE-aaa:host": [
+        {
+          "name": "sandboxtacacs"
+        }
+      ]
+    },
+    "vtp": {
+      "Cisco-IOS-XE-vtp:mode": {
+        "server": {}
+      }
+    },
+    "crypto": {
+      "Cisco-IOS-XE-crypto:pki": {
+        "trustpoint": [
+          {
+            "id": "SLA-TrustPoint",
+            "enrollment": {
+              "enrollment-method": {
+                "pkcs12": [
+                  null
+                ]
+              },
+              "pkcs12": [
+                null
+              ]
+            },
+            "hash": "sha512",
+            "revocation-check": [
+              "crl"
+            ]
+          },
+          {
+            "id": "TP-self-signed-2996086467",
+            "enrollment": {
+              "enrollment-method": {
+                "selfsigned": [
+                  null
+                ]
+              },
+              "selfsigned": [
+                null
+              ]
+            },
+            "hash": "sha512",
+            "revocation-check": [
+              "none"
+            ],
+            "rsakeypair": {
+              "key-label": "TP-self-signed-2996086467"
+            },
+            "subject-name": "cn=IOS-Self-Signed-Certificate-2996086467"
+          }
+        ]
+      }
+    },
+    "router": {
+      "Cisco-IOS-XE-ospf:router-ospf": {
+        "ospf": {
+          "process-id": [
+            {
+              "id": 1,
+              "network": [
+                {
+                  "ip": "10.12.12.0",
+                  "wildcard": "0.0.0.3",
+                  "area": 0
+                },
+                {
+                  "ip": "10.23.23.0",
+                  "wildcard": "0.0.0.3",
+                  "area": 0
+                },
+                {
+                  "ip": "192.168.2.0",
+                  "wildcard": "0.0.0.255",
+                  "area": 0
+                }
+              ],
+              "passive-interface-config": {
+                "default": [
+                  null
+                ],
+                "disable-interface": {
+                  "GigabitEthernet": [
+                    {
+                      "name": "1"
+                    },
+                    {
+                      "name": "2"
+                    }
+                  ]
+                }
+              },
+              "passive-interface": {
+                "default": true
+              },
+              "router-id": "2.2.2.2"
+            },
+            {
+              "id": 19,
+              "router-id": "33.44.88.22"
+            }
+          ]
+        }
+      }
+    },
+    "license": {
+      "udi": {
+        "pid": "C8000V",
+        "sn": "9XLWRY40A2V"
+      }
+    },
+    "line": {
+      "aux": [
+        {
+          "first": "0"
+        }
+      ],
+      "console": [
+        {
+          "first": "0",
+          "stopbits": "1"
+        }
+      ],
+      "vty": [
+        {
+          "first": 0,
+          "last": 4,
+          "exec-timeout": {
+            "minutes": 10
+          },
+          "transport": {
+            "input": {
+              "input": [
+                "ssh"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "ntp": {
+      "Cisco-IOS-XE-ntp:server": {
+        "server-list": [
+          {
+            "ip-address": "10.1.20.51",
+            "burst": false,
+            "iburst": false
+          },
+          {
+            "ip-address": "10.18.105.34",
+            "burst": false,
+            "iburst": false
+          },
+          {
+            "ip-address": "10.27.20.51",
+            "burst": false,
+            "iburst": false
+          },
+          {
+            "ip-address": "192.168.87.211",
+            "burst": false,
+            "iburst": false
+          },
+          {
+            "ip-address": "ntp.TaylorFarms.com",
+            "burst": false,
+            "iburst": false,
+            "prefer": [
+              null
+            ]
+          }
+        ]
+      }
+    },
+    "iox": {},
+    "Cisco-IOS-XE-diagnostics:diagnostic": {
+      "bootup": {
+        "level": "minimal"
+      }
+    }
+  }
+}

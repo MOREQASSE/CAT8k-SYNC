@@ -1,0 +1,19 @@
+SR-Storage1 | add_pc | FAILURES — see per-operation status above | 20260819_222521
+
+--- dhcp-reserve -> Cisco-IOS-XE-native:native/ip/dhcp/excluded-address=10.1.151.2 (PUT) : FAILED (RESTCONF PUT Cisco-IOS-XE-native:native/ip/dhcp/excluded-address=10.1.151.2 -> HTTP 404: {
+  "ietf-restconf:errors": {
+    "error": [
+      {
+        "error-type": "application",
+        "error-tag": "invalid-value",
+        "error-message": "uri keypath not found"
+      }
+    ]
+  }
+}
+) ---
+{
+  "ip-address": "10.1.151.2"
+}
+
+--- host-register via SSH : FAILED ---

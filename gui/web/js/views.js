@@ -1,4 +1,4 @@
-/* views.js — every hosted view. Routes: auth, home, provision, telemetry,
+﻿/* views.js — every hosted view. Routes: auth, home, provision, telemetry,
    topology, audit, analytics, profile. Each renders into its host node. */
 "use strict";
 
@@ -445,7 +445,6 @@ const Views = (() => {
       const cpu = s.cpu?.vals || [], mem = s.mem?.vals || [], up = s.up?.vals || [];
       const errs = s.errors?.vals || [];
       const at = d.audit_trend || {};
-      const atX = at.x || [];
       const last = (a) => (a && a.length ? a[a.length - 1] : null);
       const lastAudit = last(at.score) ?? (typeof stats.compliance === "number" ? stats.compliance : 0);
       const curCpu = last(cpu), curMem = last(mem), curUp = last(up);
@@ -459,15 +458,15 @@ const Views = (() => {
             el("span", { class: "icon-tile" }, [ic(icon, 14, accent)]),
             el("span", { class: "kpi-lbl", text: label }),
           ]),
-          el("div", { class: "kpi-row" }, [
+          val != null ? el("div", { class: "kpi-row" }, [
             el("span", { class: "kpi-num", text: String(val) }),
             el("span", { class: "kpi-unit", text: unit }),
-          ]),
+          ]) : null,
           el("div", { class: "kpi-chart" }, chartEl),
         ]);
       const kpis = el("div", { class: "dash-kpis" }, [
-        kpi("COMPLIANCE", lastAudit, "%", "shield-check", "var(--green)",
-          Charts.gauge({ value: lastAudit, max: 100, color: "var(--green)", label: "SCORE", h: 68, r: 26, unit: "%" }), true),
+        kpi("COMPLIANCE", null, null, "shield-check", "var(--green)",
+          Charts.gauge({ value: lastAudit, max: 100, label: "SCORE", h: 120, r: 52, unit: "%" }), true),
         kpi("IFACES UP", curUp ?? stats.iface_ups ?? "—", "count", "wifi", "var(--teal)", spark(up, "var(--teal)")),
         kpi("SNAPSHOTS", stats.snapshots ?? 0, "recorded", "database", "var(--blue)", spark(cpu, "var(--blue)")),
         kpi("CPU", curCpu ?? "—", "%", "cpu", "var(--yellow)", spark(cpu, "var(--yellow)")),
@@ -491,15 +490,6 @@ const Views = (() => {
           { name: "CPU", color: "#fbbf24", vals: cpu },
           { name: "MEM", color: "#2dd4bf", vals: mem },
         ], x: s.cpu?.x || [], h: 196, unit: "%" }));
-
-      const auditSlices = [
-        { label: "PASS", value: last(at.pass) ?? 0, color: "var(--green)" },
-        { label: "FAIL", value: last(at.fail) ?? 0, color: "var(--red)" },
-        { label: "WARN", value: last(at.warn) ?? 0, color: "var(--yellow)" },
-      ];
-      const donutCard = chartCard("pie-chart", "AUDIT DISTRIBUTION",
-        `latest scan · ${(atX[atX.length - 1] || "—")}`,
-        Charts.donut({ slices: auditSlices, center: lastAudit, centerSub: "SCORE %", h: 196 }));
 
       const traffic = d.traffic || [];
       const tCard = chartCard("bar-chart-3", "TOP INTERFACE TRAFFIC", "rx / tx kbps · latest snapshot",
@@ -635,7 +625,7 @@ const Views = (() => {
           el("span", { class: "no", text: "00" }), el("span", { class: "t", text: "TELEMETRY GRAPHICS" }),
           el("span", { class: "s", text: "recorded sql history · live sample when reachable" }),
         ]),
-        el("div", { class: "dash-a" }, [areaCard, donutCard]),
+        areaCard,
         el("div", { class: "dash-b" }, [tCard, eCard, hCard]),
         el("div", { class: "dash-c" }, [teleCard, evCard]),
         el("div", { class: "section-title", style: "margin-top:18px" }, [
@@ -754,11 +744,29 @@ const Views = (() => {
     let planSel = "auto";     /* ip-plan selector: auto | br:<i> | custom */
     let delIdx = -1;          /* delete-mode: index of the branch picked for teardown */
     let mode = null;          /* null = action landing | add_branch | delete_branch | add_pc */
+    let hostReg = null;       /* {hosts:[{label,vlan_id,ip,port,gateway,subnet,...}]} registry */
+    let ifaces = null;        /* telemetry interfaces (for access-port suggestion) */
+    let pcSeg = "auto";       /* add_pc segment selector: auto | br:<i> */
+    let pcDraft = null;       /* last auto-draft {label,vlan,subnet,gateway,ip,port} */
+    let pcType = "pc";        /* add_pc node type: pc | laptop | server | printer | phone */
+
+    const HOST_TYPES = [
+      { v: "pc", label: "PC", icon: "pc-case" },
+      { v: "laptop", label: "LAPTOP", icon: "laptop" },
+      { v: "server", label: "SERVER", icon: "server" },
+      { v: "printer", label: "PRINTER", icon: "printer" },
+      { v: "phone", label: "PHONE", icon: "smartphone" },
+    ];
+    const HOST_TYPE_ICONS = Object.fromEntries(HOST_TYPES.map((t) => [t.v, t.icon]));
 
     const stepsMeta = [
       ["01", "BLUEPRINT", "deployment archetype + site identity"],
       ["02", "NETWORK SEGMENT", "department vlan + ip plan"],
       ["03", "SERVICE PLAN", "router / trunk / host targets"],
+    ];
+    const PC_STEPS = [
+      ["01", "SEGMENT CONTEXT", "vlan + ip plan the host joins"],
+      ["02", "HOST NODE", "ip lease + access port"],
     ];
     let step = 0;
 
@@ -770,7 +778,11 @@ const Views = (() => {
     ]);
     const body = el("div", { class: "card", style: "padding:0" });
 
-    function setStep(i) { step = Math.max(0, Math.min(2, i)); render(); }
+    function setStep(i) {
+      const max = mode === "add_pc" ? 1 : 2;
+      step = Math.max(0, Math.min(max, i));
+      render();
+    }
 
     /* ---- fabric-scan driven smarts -------------------------------- */
     function vlanState() {
@@ -862,7 +874,9 @@ const Views = (() => {
       Promise.all([
         API.scanVlans().catch(() => null),
         API.provisionPlan().catch(() => null),
-      ]).then(([vs, pl]) => {
+        API.hostRegistry().catch(() => null),
+        API.telemetry("interfaces").catch(() => null),
+      ]).then(([vs, pl, hr, tlf]) => {
         if (vs && vs.ok) {
           vlanScan = vs;
           if (!form.vlan_id) form.vlan_id = String(vs.suggestion);
@@ -880,7 +894,14 @@ const Views = (() => {
           }
           if (!form.router_wan_ip && pl.wan_ip) form.router_wan_ip = pl.wan_ip.split("/")[0];
         }
+        if (hr && hr.ok) hostReg = hr;
+        if (tlf) ifaces = tlf;
         if (!form.pc_ip && form.gateway) form.pc_ip = nextIp(form.gateway);
+        if (mode === "add_pc") {
+          applyPcDraft();
+          render();
+          return;
+        }
         syncLive();
         if (mode === null) renderActions();
       });
@@ -890,16 +911,21 @@ const Views = (() => {
        vlan hints reflect the change without an app restart */
     async function refreshFabric() {
       try { await collectAndWait("interfaces"); } catch (e) { /* best effort */ }
-      const [pl, vs] = await Promise.all([
+      const [pl, vs, hr] = await Promise.all([
         API.provisionPlan(true).catch(() => null),
         API.scanVlans(true).catch(() => null),
+        API.hostRegistry().catch(() => null),
       ]);
       let changed = false;
       if (pl && pl.ok) { plan = pl; changed = true; }
       if (vs && vs.ok) { vlanScan = vs; changed = true; }
+      if (hr && hr.ok) { hostReg = hr; changed = true; }
       if (!changed) return;
       if (form.action === "delete_branch") {
         delIdx = -1;
+        render();
+      } else if (mode === "add_pc") {
+        applyPcDraft();
         render();
       } else {
         if (!form.vlan_id && vlanScan && vlanScan.suggestion) form.vlan_id = String(vlanScan.suggestion);
@@ -910,6 +936,111 @@ const Views = (() => {
       const p = String(ip || "").trim().split(".");
       if (p.length !== 4) return ip;
       return `${p[0]}.${p[1]}.${p[2]}.${Number(p[3]) + 1}`;
+    }
+    /* ---- add_pc smart auto-fill (registry + fabric driven) ------------ */
+    function currentPcSegment() {
+      if (pcSeg.startsWith("br:")) {
+        const b = (plan ? plan.branches : [])[Number(pcSeg.slice(3))];
+        if (b) return { vlan: String(b.vlan), subnet: b.subnet, gateway: b.gateway };
+        pcSeg = "auto";
+      }
+      const a = autoPlan();
+      return {
+        vlan: vlanScan && vlanScan.suggestion ? String(vlanScan.suggestion) : "",
+        subnet: a.subnet, gateway: a.gateway,
+      };
+    }
+    function nextFreeHostIp(subnet, gateway, taken) {
+      const m = /^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/.exec(String(subnet || "").trim());
+      if (!m || !gateway) return "";
+      const oct = m[1].split(".").map(Number);
+      const bits = Number(m[2]);
+      const total = 2 ** (32 - bits);
+      if (total <= 4) return "";
+      const takenSet = new Set((taken || []).map(String));
+      for (let last = Number(gateway.split(".")[3]) + 1; last < total - 1; last++) {
+        const ip = `${oct[0]}.${oct[1]}.${oct[2]}.${last}`;
+        if (!takenSet.has(ip)) return ip;
+      }
+      return "";
+    }
+    function suggestedPort() {
+      const list = (ifaces && ifaces.entries) || [];
+      const hit = list.find((e) => String(e.name || "").includes("GigabitEthernet")
+        && !String(e.name || "").includes(".")
+        && String(e.status || "").toLowerCase() !== "up");
+      return hit ? hit.name : (list.find((e) => String(e.name || "").includes("GigabitEthernet") && !String(e.name || "").includes(".")) || {}).name || "Gi0/0/9";
+    }
+    function pcAutoDraft() {
+      const seg = currentPcSegment();
+      if (!seg || !seg.subnet || !seg.gateway) return null;
+      const hosts = (hostReg && hostReg.hosts) || [];
+      const ip = nextFreeHostIp(seg.subnet, seg.gateway, hosts.map((h) => h.ip));
+      return {
+        label: "PC-" + seg.vlan,
+        vlan: seg.vlan, subnet: seg.subnet, gateway: seg.gateway,
+        ip, port: suggestedPort(),
+      };
+    }
+    function applyPcDraft() {
+      const d = pcAutoDraft();
+      if (!d) return;
+      pcDraft = d;
+      Object.assign(form, {
+        site_name: d.label, vlan_id: d.vlan,
+        department_subnet: d.subnet, gateway: d.gateway,
+        pc_ip: d.ip, port: d.port,
+      });
+      const vn = deriveVlanName(d.label);
+      if (vn) form.vlan_name = vn;
+    }
+    function pcIpHint() {
+      const ip = String(form.pc_ip || "");
+      if (!ip) return "AUTO-DRAFT suggests the next free IP from the registry";
+      const hosts = (hostReg && hostReg.hosts) || [];
+      const clash = hosts.find((h) => String(h.ip) === ip);
+      if (clash) return `IP TAKEN — ${clash.label}; pick another or AUTO-DRAFT`;
+      if (pcDraft && ip === pcDraft.ip) {
+        return `NEXT FREE // ${ip} · ${hosts.length} host${hosts.length === 1 ? "" : "s"} reserved in ${pcDraft.subnet}`;
+      }
+      return "MANUAL // outside the auto range — AUTO-DRAFT restores the next free IP";
+    }
+    function pcPortHint() {
+      const port = String(form.port || "");
+      if (!port) return "AUTO-PICKED from live interface telemetry";
+      const hosts = (hostReg && hostReg.hosts) || [];
+      const clash = hosts.find((h) => String(h.port) === port && String(h.port) !== "—");
+      if (clash) return `IN USE — ${clash.label}; pick another port`;
+      if (pcDraft && port === pcDraft.port) return `PORT ${port} // FREE (auto-picked from telemetry)`;
+      return "MANUAL PORT // outside the auto pick";
+    }
+    function syncPc() {
+      if (!body.isConnected) return;
+      body.querySelectorAll("[data-key]").forEach((inp) => {
+        if (inp.value !== form[inp.dataset.key]) inp.value = form[inp.dataset.key];
+      });
+      const ih = body.querySelector("#pc-ip-hint");
+      if (ih) {
+        const clash = (hostReg && hostReg.hosts || []).some((h) => String(h.ip) === String(form.pc_ip));
+        ih.textContent = pcIpHint();
+        ih.className = clash ? "hint err" : "hint neutral";
+      }
+      const ph = body.querySelector("#pc-port-hint");
+      if (ph) {
+        const clash = (hostReg && hostReg.hosts || []).some((h) => String(h.port) === String(form.port) && String(h.port) !== "—");
+        ph.textContent = pcPortHint();
+        ph.className = clash ? "hint err" : "hint neutral";
+      }
+      pcType = HOST_TYPE_ICONS[String(form.node_type || "pc")] ? String(form.node_type) : "pc";
+      const tr = body.querySelector("#pc-type-row");
+      if (tr) tr.querySelectorAll(".chip-sel").forEach((c) => {
+        const on = c.dataset.type === pcType;
+        c.classList.toggle("on", on);
+        const sw = c.querySelector("svg use");
+        if (sw) sw.setAttribute("href", `#${HOST_TYPE_ICONS[pcType] || "pc-case"}`);
+      });
+      const dep = foot.querySelector("#dep-go");
+      if (dep && mode === "add_pc") dep.disabled = !(form.site_name && form.pc_ip && form.vlan_id && form.gateway);
     }
     function syncLive() {
       if (!body.isConnected) return;
@@ -936,7 +1067,7 @@ const Views = (() => {
 
     function renderSteps() {
       stepsBox.innerHTML = "";
-      stepsMeta.forEach(([no, t, s], i) => {
+      (mode === "add_pc" ? PC_STEPS : stepsMeta).forEach(([no, t, s], i) => {
         const on = i === step, done = i < step;
         stepsBox.append(el("div", {
           class: "card", style: `flex:1;cursor:pointer;--accent:${on ? "var(--teal)" : "var(--line2)"}`, onclick: () => setStep(i),
@@ -971,8 +1102,13 @@ const Views = (() => {
       ["site_name", "department_vlan", "vlan_id", "vlan_name",
        "department_subnet", "gateway", "router_wan_ip", "router_trunk_port",
        "port", "pc_ip"].forEach((k) => { form[k] = ""; });
+      form.node_type = "pc";
       delIdx = -1;
       vlanNameAuto = true;
+      pcSeg = "auto";
+      pcDraft = null;
+      pcType = "pc";
+      step = 0;
       loadScans();
       render();
     }
@@ -1101,32 +1237,234 @@ const Views = (() => {
         return;
       }
 
-      /* ADD PC — HOST NODE REGISTRY */
+      /* ADD PC — HOST NODE REGISTRY (2-step guided flow with smart auto-fill) */
       if (mode === "add_pc") {
-        body.appendChild(el("div", {}, [
-          el("div", { class: "section-title", style: "margin-bottom:12px" }, [
-            el("span", { class: "no", text: "S1" }), el("span", { class: "t", text: "HOST NODE REGISTRATION" }),
-            el("span", { class: "s", text: "register a PC on the fabric — ip lease + access port" }),
+        const hosts = (hostReg && hostReg.hosts) || [];
+        const branches = (plan ? plan.branches : []).filter((b) => b.subnet && b.gateway);
+        const draft = pcDraft;
+        const seg = currentPcSegment();
+
+        /* step 0 — segment context: pick the segment + review the registry */
+        const pcStep0 = el("div", {}, [
+          el("div", { class: "section-title" }, [
+            el("span", { class: "no", text: "S1" }),
+            el("span", { class: "t", text: "SEGMENT CONTEXT" }),
+            el("span", { class: "s", text: "the segment drives vlan, gateway and the next-free ip" }),
           ]),
           el("div", { class: "grid2" }, [
             el("div", { class: "card", style: "padding:6px 0" }, [
-              el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("square-user", 16, "var(--green)")]), el("span", { class: "t", text: "HOST NODE" })]),
+              el("div", { class: "card-head" }, [
+                el("span", { class: "icon-tile" }, [ic("network", 16, "var(--teal)")]),
+                el("span", { class: "t", text: "SEGMENT" }),
+                el("span", { class: "spacer" }),
+                vlanScan ? el("span", { class: "muted mono small", text: `SCAN // ${vlanScan.count} taken · next free ${vlanScan.suggestion}` }) : null,
+              ]),
               el("div", { class: "card-body" }, [
-                f("site_name", "SITE / LABEL", { placeholder: "e.g. BR-ALGER" }),
-                f("pc_ip", "PC IP", { placeholder: "10.1.100.10" }),
-                f("port", "ACCESS PORT", { placeholder: "Gi0/0/1" }),
+                el("div", { class: "field stack" }, [
+                  el("label", { text: "HOST SEGMENT" }),
+                  el("select", { id: "pc-seg", class: "sel" }, (() => {
+                    const opts = branches.map((b, i) => ({
+                      v: "br:" + i,
+                      t: `VLAN ${b.vlan} // ${b.site} · ${b.subnet} · gw ${b.gateway}`,
+                    }));
+                    opts.push({
+                      v: "auto",
+                      t: `AUTO · NEXT FREE /24 · ${seg.subnet} · gw ${seg.gateway}`,
+                    });
+                    return opts.map((o) => el("option", { value: o.v, text: o.t }));
+                  })()),
+                  el("div", { class: "hint neutral", id: "pc-seg-hint",
+                    text: pcSeg === "auto"
+                      ? "AUTO SEGMENT // the fabric's next free /24 — or pick an existing branch to host the PC"
+                      : "EXISTING SEGMENT // host joins a live branch network" }),
+                ]),
+                el("div", { class: "row", style: "gap:8px;flex-wrap:wrap;margin-top:12px" }, [
+                  el("span", { class: "chip", text: `VLAN ${seg.vlan || "—"}` }),
+                  el("span", { class: "chip", text: seg.subnet || "—" }),
+                  el("span", { class: "chip", text: `GW ${seg.gateway || "—"}` }),
+                  el("span", { class: "chip", text: `${branches.length} BRANCH SEGMENTS` }),
+                ]),
               ]),
             ]),
             el("div", { class: "card", style: "padding:6px 0" }, [
-              el("div", { class: "card-head" }, [el("span", { class: "icon-tile" }, [ic("network", 16, "var(--teal)")]), el("span", { class: "t", text: "SEGMENT CONTEXT" })]),
+              el("div", { class: "card-head" }, [
+                el("span", { class: "icon-tile" }, [ic("database", 16, "var(--green)")]),
+                el("span", { class: "t", text: "REGISTERED HOSTS" }),
+                el("span", { class: "spacer" }),
+                el("span", { class: "muted mono small", text: `${hosts.length} RECORDS` }),
+              ]),
+              el("div", { class: "card-body" }, hosts.length
+                ? el("table", { class: "tbl" }, [
+                    el("thead", {}, [el("tr", {}, ["NODE", "LABEL", "VLAN", "IP", "PORT"].map((h) => el("th", { text: h })))]),
+                    el("tbody", {}, hosts.slice(0, 8).map((h) => {
+                      const nt = String(h.node_type || "pc").toLowerCase();
+                      return el("tr", {}, [
+                        el("td", { class: "row", style: "gap:6px;padding:4px 10px" }, [
+                          el("span", { class: "ic-sm", html: ic(HOST_TYPE_ICONS[nt] || "pc-case", 14, "var(--teal)") }),
+                          el("span", { class: "mono small", text: String(h.node_type || "pc").toUpperCase() }),
+                        ]),
+                        el("td", { text: h.label }),
+                        el("td", { text: String(h.vlan_id) }),
+                        el("td", { class: "mono", text: h.ip }),
+                        el("td", { class: "mono", text: h.port || "—" }),
+                      ]);
+                    })),
+                  ])
+                : el("div", { class: "hint neutral", style: "margin-top:8px",
+                    text: "registry empty — deploying a host here writes the first record" })),
+            ]),
+          ]),
+        ]);
+
+        /* step 1 — host node: auto-drafted, every value editable */
+        const clashIp = hosts.some((h) => String(h.ip) === String(form.pc_ip));
+        const clashPort = hosts.some((h) => String(h.port) === String(form.port) && String(h.port) !== "—");
+        const pcStep1 = el("div", {}, [
+          el("div", { class: "section-title" }, [
+            el("span", { class: "no", text: "S2" }),
+            el("span", { class: "t", text: "HOST NODE" }),
+            el("span", { class: "s", text: "auto-drafted from the registry — adjust anything, or AUTO-DRAFT again" }),
+          ]),
+          el("div", { class: "grid2" }, [
+            el("div", { class: "card", style: "padding:6px 0" }, [
+              el("div", { class: "card-head" }, [
+                el("span", { class: "icon-tile" }, [ic("square-user", 16, "var(--green)")]),
+                el("span", { class: "t", text: "HOST NODE" }),
+                el("span", { class: "spacer" }),
+                el("button", { id: "pc-draft", class: "btn ghost green", onclick: () => { applyPcDraft(); syncPc(); } },
+                  [ic("wand-2", 14), "AUTO-DRAFT"]),
+              ]),
               el("div", { class: "card-body" }, [
-                f("vlan_id", "VLAN — AUTO SUGGESTED"),
-                f("gateway", "GATEWAY"),
+                el("div", { class: "field" }, [
+                  el("label", { text: "NODE TYPE" }),
+                  el("div", { class: "row", style: "gap:8px;flex-wrap:wrap", id: "pc-type-row" },
+                    HOST_TYPES.map((t) => {
+                      const on = pcType === t.v;
+                      return el("button", {
+                        class: "chip chip-sel" + (on ? " on" : ""), "data-type": t.v,
+                        onclick: () => { pcType = t.v; form.node_type = t.v; syncPc(); },
+                      }, [el("span", { html: ic(t.icon, 13, on ? "var(--teal)" : "var(--muted)") }), " " + t.label]);
+                    })),
+                  el("div", { class: "hint neutral", id: "pc-type-hint",
+                    text: "the node type drives the topology icon and the registry record" }),
+                ]),
+                el("div", { class: "field" }, [
+                  el("label", { text: "SITE / LABEL" }),
+                  el("input", { type: "text", value: form.site_name, placeholder: "e.g. PC-150", "data-key": "site_name" }),
+                  el("div", { class: "hint neutral", id: "pc-label-hint",
+                    text: draft ? `DRAFTED // ${draft.label} — derived from the segment` : "label the host node — e.g. PC-150" }),
+                ]),
+                el("div", { class: "field" }, [
+                  el("label", { text: "PC IP" }),
+                  el("input", { type: "text", value: form.pc_ip, placeholder: "10.1.150.10", "data-key": "pc_ip", class: clashIp ? "err" : "" }),
+                  el("div", { class: clashIp ? "hint err" : "hint neutral", id: "pc-ip-hint", text: pcIpHint() }),
+                ]),
+                el("div", { class: "field" }, [
+                  el("label", { text: "ACCESS PORT" }),
+                  el("input", { type: "text", value: form.port, placeholder: "Gi0/0/9", "data-key": "port", class: clashPort ? "err" : "" }),
+                  el("div", { class: clashPort ? "hint err" : "hint neutral", id: "pc-port-hint", text: pcPortHint() }),
+                ]),
+              ]),
+            ]),
+            el("div", { class: "card", style: "padding:6px 0" }, [
+              el("div", { class: "card-head" }, [
+                el("span", { class: "icon-tile" }, [ic("route", 16, "var(--teal)")]),
+                el("span", { class: "t", text: "SEGMENT CONTEXT" }),
+                el("span", { class: "spacer" }),
+                el("span", { class: "muted mono small", text: "EDITABLE" }),
+              ]),
+              el("div", { class: "card-body" }, [
+                el("div", { class: "field" }, [
+                  el("label", { text: "VLAN ID" }),
+                  el("input", { type: "text", value: form.vlan_id, placeholder: "2-4094", "data-key": "vlan_id" }),
+                ]),
+                el("div", { class: "ip-grid" }, [
+                  el("div", { class: "field stack" }, [
+                    el("label", { text: "SUBNET // CIDR" }),
+                    el("input", { type: "text", value: form.department_subnet, placeholder: "10.1.150.0/24", "data-key": "department_subnet" }),
+                  ]),
+                  el("div", { class: "field stack" }, [
+                    el("label", { text: "GATEWAY" }),
+                    el("input", { type: "text", value: form.gateway, placeholder: "10.1.150.1", "data-key": "gateway" }),
+                  ]),
+                ]),
+                el("div", { class: "hint neutral", style: "margin-top:10px",
+                  text: "deploy registers the host in the registry AND pushes the ip-lease reservation to the router" }),
               ]),
             ]),
           ]),
-        ]));
+        ]);
+
+        body.appendChild(el("div", {}, [pcStep0, pcStep1][step]));
+        wireInputs();
+        const segEl = body.querySelector("#pc-seg");
+        if (segEl) {
+          segEl.value = pcSeg === "auto" ? "auto" : pcSeg;
+          segEl.addEventListener("change", () => {
+            pcSeg = segEl.value;
+            applyPcDraft();
+            syncPc();
+          });
+        }
         return;
+      }
+
+      /* shared input wiring — every [data-key] field writes form, with
+         per-mode live hints (wizard: vlan/name checks; add_pc: ip/port checks) */
+      function wireInputs() {
+        body.querySelectorAll("[data-key]").forEach((inp) => {
+          const k = inp.dataset.key;
+          inp.addEventListener(inp.tagName === "SELECT" ? "change" : "input", (e) => {
+            form[k] = e.target.value;
+            if (k === "action") { render(); return; }
+            if (mode === "add_pc") {
+              if (k === "pc_ip" || k === "port" || k === "site_name" || k === "vlan_id" || k === "gateway") syncPc();
+              return;
+            }
+            if (k === "site_name") {
+              const dep = foot.querySelector("#dep-go");
+              if (dep && form.action !== "delete_branch") dep.disabled = !e.target.value.trim();
+            }
+            if (k === "site_name" && (vlanNameAuto || !form.vlan_name)) {
+              const d = deriveVlanName(e.target.value);
+              if (d) {
+                form.vlan_name = d;
+                const nameIn = body.querySelector('[data-key="vlan_name"]');
+                if (nameIn) nameIn.value = d;
+                const nh = body.querySelector("#vlan-name-hint");
+                if (nh) {
+                  const w = vlanNameState();
+                  nh.textContent = w || vlanNameHint();
+                  nh.className = w ? "hint err" : "hint neutral";
+                }
+              }
+            }
+            if (k === "vlan_id") {
+              const hint = body.querySelector("#vlan-hint");
+              const w = vlanState();
+              vlanWarn = !!w;
+              inp.classList.toggle("err", !!w);
+              if (hint) {
+                hint.textContent = w || vlanHint();
+                hint.className = w ? "hint err" : "hint neutral";
+              }
+              syncStrip();
+            }
+            if (k === "vlan_name") {
+              vlanNameAuto = false;
+              const hint = body.querySelector("#vlan-name-hint");
+              const w = vlanNameState();
+              vlanNameWarn = !!w;
+              inp.classList.toggle("err", !!w);
+              if (hint) {
+                hint.textContent = w || vlanNameHint();
+                hint.className = w ? "hint err" : "hint neutral";
+              }
+            }
+            if (k === "gateway" && !form.pc_ip && step === 1) form.pc_ip = nextIp(e.target.value);
+            if (k === "department_subnet" || k === "gateway") syncStrip();
+          });
+        });
       }
 
       /* STEP 0 — blueprint */
@@ -1244,55 +1582,7 @@ const Views = (() => {
 
       wrap.append([step0, step1, step2][step]);
       body.appendChild(wrap);
-      body.querySelectorAll("[data-key]").forEach((inp) => {
-        const k = inp.dataset.key;
-        inp.addEventListener(inp.tagName === "SELECT" ? "change" : "input", (e) => {
-          form[k] = e.target.value;
-          if (k === "action") { render(); return; }
-          if (k === "site_name") {
-            const dep = foot.querySelector("#dep-go");
-            if (dep && form.action !== "delete_branch") dep.disabled = !e.target.value.trim();
-          }
-          if (k === "site_name" && (vlanNameAuto || !form.vlan_name)) {
-            const d = deriveVlanName(e.target.value);
-            if (d) {
-              form.vlan_name = d;
-              const nameIn = body.querySelector('[data-key="vlan_name"]');
-              if (nameIn) nameIn.value = d;
-              const nh = body.querySelector("#vlan-name-hint");
-              if (nh) {
-                const w = vlanNameState();
-                nh.textContent = w || vlanNameHint();
-                nh.className = w ? "hint err" : "hint neutral";
-              }
-            }
-          }
-          if (k === "vlan_id") {
-            const hint = body.querySelector("#vlan-hint");
-            const w = vlanState();
-            vlanWarn = !!w;
-            inp.classList.toggle("err", !!w);
-            if (hint) {
-              hint.textContent = w || vlanHint();
-              hint.className = w ? "hint err" : "hint neutral";
-            }
-            syncStrip();
-          }
-          if (k === "vlan_name") {
-            vlanNameAuto = false;
-            const hint = body.querySelector("#vlan-name-hint");
-            const w = vlanNameState();
-            vlanNameWarn = !!w;
-            inp.classList.toggle("err", !!w);
-            if (hint) {
-              hint.textContent = w || vlanNameHint();
-              hint.className = w ? "hint err" : "hint neutral";
-            }
-          }
-          if (k === "gateway" && !form.pc_ip && step === 1) form.pc_ip = nextIp(e.target.value);
-          if (k === "department_subnet" || k === "gateway") syncStrip();
-        });
-      });
+      wireInputs();
       const planSelEl = body.querySelector("#plan-sel");
       if (planSelEl) {
         planSelEl.value = planSel === "auto" ? "auto" : planSel;
@@ -1365,11 +1655,18 @@ const Views = (() => {
 
     function deploy(btn) {
       if (form.action === "delete_branch") return confirmTeardown();
-      const meta = [
-        ["ACTION", form.action], ["SITE", form.site_name], ["VLAN", form.vlan_id],
-        ["SUBNET", form.department_subnet], ["GATEWAY", form.gateway],
-        ["ROUTER WAN", form.router_wan_ip], ["TRUNK", form.router_trunk_port],
-      ].filter(([, v]) => v && v !== "");
+      const pc = form.action === "add_pc";
+      const meta = pc
+        ? [
+            ["ACTION", form.action], ["SITE", form.site_name], ["PC IP", form.pc_ip],
+            ["TYPE", String(form.node_type || "pc").toUpperCase()],
+            ["VLAN", form.vlan_id], ["PORT", form.port], ["GATEWAY", form.gateway],
+          ]
+        : [
+            ["ACTION", form.action], ["SITE", form.site_name], ["VLAN", form.vlan_id],
+            ["SUBNET", form.department_subnet], ["GATEWAY", form.gateway],
+            ["ROUTER WAN", form.router_wan_ip], ["TRUNK", form.router_trunk_port],
+          ];
       launchSequence({
         origin: btn,
         site: form.site_name || "unnamed site",
@@ -1386,7 +1683,7 @@ const Views = (() => {
           return { ok: false, detail: (res && res.detail) || "provision rejected by fabric" };
         },
         onSuccess: () => {
-          toast("change applied to fabric — refreshing plan", "sys");
+          toast(pc ? "host registered — ip lease reserved + registry updated" : "change applied to fabric — refreshing plan", "sys");
           refreshFabric();
         },
         onAbort: () => {
@@ -1417,12 +1714,13 @@ const Views = (() => {
       if (!dep) return;
       const del = mode === "delete_branch";
       const wizard = mode === "add_branch";
-      stepsBox.style.display = wizard ? "" : "none";
-      foot.querySelector("#back-go").style.display = wizard ? "" : "none";
+      const pc = mode === "add_pc";
+      stepsBox.style.display = wizard || pc ? "" : "none";
+      foot.querySelector("#back-go").style.display = wizard || pc ? "" : "none";
       foot.querySelector("#prev-go").style.display = wizard ? "" : "none";
       dep.replaceWith(el("button", {
         id: "dep-go", class: del ? "btn red" : "btn teal",
-        disabled: del ? !form.vlan_id : !form.site_name,
+        disabled: del ? !form.vlan_id : (pc ? !(form.site_name && form.pc_ip && form.vlan_id && form.gateway) : !form.site_name),
         onclick: (e) => deploy(e.currentTarget),
       }, del ? [ic("trash-2", 15), "TEARDOWN SELECTED"] : [ic("rocket", 15), "DEPLOY →"]));
     }
@@ -2329,14 +2627,38 @@ async function liveFetch() {
                 el("span", { class: "muted small", text: "— one click starts a port, no CLI needed" }),
               ]),
               el("div", { class: "col", style: "gap:6px" }, down.map((x) => {
+                if (x.admin === "up") {
+                  return el("div", { class: "iface-down-row stuck" }, [
+                    el("span", { class: "mono", text: x.name }),
+                    el("span", { class: "muted small", style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap", text: [x.description, x.ip && x.ip !== "0.0.0.0" ? x.ip : null].filter(Boolean).join(" · ") || "no address" }),
+                    el("span", { class: "spacer" }),
+                    el("span", { class: "stuck-note" }, [
+                      ic("lightbulb", 13),
+                      el("span", { text: x.state === "lower-layer-down"
+                        ? "no L2 members on this VLAN — autostate keeps the line down; START cannot help"
+                        : "line down — no peer or cable connected; START cannot help" }),
+                    ]),
+                    el("button", { class: "btn gray small", disabled: true }, [ic("ban", 13), "CANNOT START"]),
+                  ]);
+                }
                 const startBtn = el("button", { class: "btn teal small", onclick: async (ev) => {
                   const btn = ev.currentTarget;
                   btn.disabled = true;
                   btn.replaceChildren(el("span", { html: ic("loader-circle", 13) }), el("span", { text: " STARTING…" }));
                   await opsRun("IFACE_STATE", () => API.setIfaceState(x.name, true), (r) => {
+                    const name = (r && r.iface) || x.name;
+                    if (!r || !r.ok) {
+                      const why = (r && r.detail) || "line down — no peer/cable";
+                      toast(name + ": " + why, "warn");
+                      const row = btn.closest(".iface-down-row");
+                      if (row) {
+                        const hint = row.querySelector(".muted.small");
+                        if (hint) hint.textContent = why;
+                      }
+                      return;
+                    }
                     const row = btn.closest(".iface-down-row");
                     if (!row) { refreshDown(); return; }
-                    const name = (r && r.iface) || x.name;
                     toast(name + " is up", "ok");
                     const head = ifRes.querySelector(".down-head .mono");
                     if (head) {
@@ -2359,7 +2681,7 @@ async function liveFetch() {
                 } }, [ic("zap", 13), "START"]);
                 return el("div", { class: "iface-down-row" }, [
                   el("span", { class: "mono", text: x.name }),
-                  el("span", { class: "muted small", style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap", text: x.description || x.ip || "no address" }),
+                  el("span", { class: "muted small", style: "overflow:hidden;text-overflow:ellipsis;white-space:nowrap", text: [x.description, x.ip && x.ip !== "0.0.0.0" ? x.ip : null, (x.admin === "up" && x.state !== "ready") ? "line down — no peer/cable" : null].filter(Boolean).join(" · ") || "no address" }),
                   el("span", { class: "spacer" }),
                   startBtn,
                 ]);
@@ -3085,13 +3407,13 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
               { name: "MEM %", color: "var(--green)", vals: d.mem && d.mem.vals },
             ] }),
             note(cov(d.cpu)),
-          ]),
+          ], winChips()),
           card("activity", "FABRIC AVAILABILITY", [
             Charts.area({ x: shortX(d.avail), h: 190, unit: "%", series: [
               { name: "AVAIL %", color: "var(--blue)", vals: fill(d.avail && d.avail.vals) },
             ] }),
             note(cov(d.avail)),
-          ]),
+          ], winChips()),
         ]),
         el("div", { class: "grid2" }, [
           card("shield-check", "COMPLIANCE SCORE HISTORY", [
@@ -3099,13 +3421,13 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
               { name: "SCORE %", color: "var(--green)", vals: d.audit && d.audit.score },
             ] }),
             note(cov(d.audit)),
-          ]),
+          ], winChips()),
           card("network", "ARP SCALE", [
             Charts.area({ x: shortX(d.arp), h: 190, series: [
               { name: "ARP ENTRIES", color: "var(--teal)", vals: d.arp && d.arp.vals },
             ] }),
             note(cov(d.arp) + ((d.arp && d.arp.vals && d.arp.vals.length) ? " · last " + d.arp.vals[d.arp.vals.length - 1] : "")),
-          ]),
+          ], winChips()),
         ]),
         sec("02", "TRAFFIC & ERROR ANALYSIS", "throughput and counter anomalies per snapshot window"),
         el("div", { class: "grid-3-2" }, [
@@ -3115,7 +3437,7 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
               { name: "TX kbps", color: "var(--blue)", vals: d.thr && d.thr.tx },
             ] }),
             note(cov(d.thr)),
-          ]),
+          ], winChips()),
           card("siren", "ERROR & FLAP BURSTS", [
             Charts.bars({ labels: shortX(d.errs), h: 200, series: [
               { name: "IN-ERR", color: "var(--red)", vals: d.errs && d.errs.in_errors },
@@ -3123,7 +3445,7 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
               { name: "FLAPS", color: "var(--blue)", vals: d.errs && d.errs.flaps },
             ] }),
             note(cov(d.errs)),
-          ]),
+          ], winChips()),
         ]),
         el("div", { class: "grid-3-2" }, [
           card("gauge", "TOP TALKERS — RX TREND", [
@@ -3131,7 +3453,7 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
               name: t.name, color: ["var(--teal)", "var(--yellow)", "var(--blue)"][i], vals: t.vals,
             })) }),
             note(talkers.length ? talkers.map((t) => `${t.name} ${fmtK(t.rx)}k rx`).join(" · ") : "no talker data yet"),
-          ]),
+          ], winChips()),
           card("triangle-alert", "PROBLEM INTERFACES", [
             (d.problems && d.problems.length)
               ? el("table", { class: "tbl" }, [
@@ -3202,19 +3524,16 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
       );
     }
 
-    const spanBar = el("div", { class: "seg-row" }, [
-      el("span", { class: "seg-cap", text: "SAMPLE WINDOW" }),
+    const winChips = () => el("div", { class: "seg-row win-chips" }, [
       RANGES.map(([n, lbl]) => el("button", {
         class: "seg-btn" + (span === n ? " on" : ""),
         title: "last " + n + " collections",
-        onclick: async (ev) => {
+        onclick: async () => {
           span = n;
-          spanBar.querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("on", b === ev.currentTarget));
           deep = await API.analyticsDeep(span).catch(() => null);
           renderDeep();
         },
       }, [lbl])),
-      el("span", { class: "seg-cap muted", text: "collections (snapshots)" }),
     ]);
 
     const rescanBtn = el("button", {
@@ -3279,7 +3598,7 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
           head("percent", "COMPLIANCE SCORE", el("span", { class: "verdict", style: `--c:${verdict.c}` }, [ic(verdict.i, 13), verdict.t])),
           el("div", { class: "card-body" }, [
             el("div", { class: "score-grid" }, [
-              Charts.gauge({ value: score, max: 100, color: verdict.c, label: "SCORE", unit: "%", sub: verdict.d }),
+              Charts.gauge({ value: score, max: 100, label: "SCORE", unit: "%", sub: verdict.d }),
               el("div", { class: "grid2", style: "flex:1" }, [
                 cell("PASS", String(counts.pass ?? 0), "var(--green)"),
                 cell("FAIL", String(counts.fail ?? 0), "var(--red)"),
@@ -3307,7 +3626,6 @@ const SANDBOX_WARN = "This writes to the LIVE device. DevNet sandboxes are share
           ]),
         ]),
       ]),
-      spanBar,
       deepHost,
     );
   }

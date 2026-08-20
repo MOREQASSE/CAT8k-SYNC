@@ -16,6 +16,10 @@ Four tables store what the platform measures. `snapshot_history` keeps one row p
 
 `audit_history` stores the compliance scan results per run, with the scan filename and the per-rule findings. `actions_log` records every provisioning operation: action name, status, message, payload, and device. `events_log` is the general event log that both interfaces append to. All three are append-only by convention; nothing in the code deletes or rewrites them.
 
+## The host registry
+
+`host_registry` records every host node registered through the `add_pc` provisioning action: label, node type (pc, laptop, server, printer, or phone), VLAN, IP, mask, access port, gateway, subnet, target device, and creation timestamp. `save_host` inserts a record and stores the node type (it defaults to `pc` when omitted), `list_hosts(limit)` is the read path, and `host_ip_taken(ip)` powers the duplicate-IP check in provisioning validation. The registry is the UI's source for the next-free-IP and port suggestions in the add-PC flow and for the registered-host nodes on the topology map, and `wipe_all()` clears it along with the rest of the schema. Databases created before the node type existed are migrated on startup: `init()` checks the table's columns and adds the `node_type` column when missing.
+
 ## The audit ledger
 
 `audit_ledger` is the tamper-evidence layer. Each row holds an event type, actor, action, payload, timestamp, the previous entry's checksum, and its own checksum. The chain rule, in `log_ledger`:

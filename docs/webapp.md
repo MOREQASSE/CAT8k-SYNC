@@ -18,7 +18,7 @@ The single-page UI in `gui/web/index.html` is organized as ten views, switched b
 | --- | --- |
 | Sign-in | `login`, `logout`, `fields`, `validate` |
 | Home | `dashboard`, `hosts`, `health`, `state` |
-| Provisioning | `provisionPlan`, `provision`, `deleteSub`, `scanVlans` |
+| Provisioning | `provisionPlan`, `provision`, `deleteSub`, `scanVlans`, `hostRegistry` |
 | Telemetry | `telemetry`, `collectTelemetry`, `telemetryRaw`, `series`, `trends` |
 | Models explorer | `netconfModules`, `netconfSchema`, `netconfGet`, `netconfNamespace` |
 | Operations | `cliRun`, `cliArchiveDiff`, `configHistory`, `configDiff`, `dnsAdd` |
@@ -28,6 +28,8 @@ The single-page UI in `gui/web/index.html` is organized as ten views, switched b
 | Profile | `profile`, `creds`, `updateCreds`, `updateProfile`, `testCreds`, `setMode`, `saveVpn`, `vpnStatus`, `vpnConnect`, `vpnDisconnect` |
 
 The full surface is about seventy methods. A representative subset: `state` returns the platform identity and device mode, `testCreds` verifies vault credentials against the device without saving, `scanVlans` inventories VLANs, `remediate` and `remediateAll` apply the fixes proposed by the security posture checks, and `verifyAudit` replays the ledger chain to prove it is unbroken.
+
+The provisioning view's add-PC flow is a two-step guided form. The first step picks the segment the host joins: an existing branch or the fabric's next free /24, with a live table of the registered hosts. The second step auto-drafts the host node from that context — label from the VLAN, the next free IP from the subnet and registry (`hostRegistry`), and a free access port from interface telemetry — while every value stays editable. A node-type picker (PC, laptop, server, printer, phone) labels the host and drives its icon in the topology. `hostRegistry` is a separate endpoint from the topology `hosts` list: the latter reports which monitored devices are up, the former is the administrative registry of registered host nodes. Deploying runs the same validation as the CLI (`validate`, including the duplicate-IP check via `host_ip_taken` and the node-type whitelist) and then `provision`. `provision` reports the deployment's real outcome: `ok` is false when the RESTCONF write and the SSH fallback both failed, and `detail` carries the failure reason pulled from the deploy log (for example an SSH connection error), so the launch sequence shows the abort card with the actual cause instead of a mission-accomplished card, and a failed deployment never writes a registry record. The topology view renders every registered host as a node on an inner arc around the core, linked to its branch segment (or the core when the segment has no branch), with an icon per node type; registered hosts therefore survive on the map even when they are not part of the live interface telemetry.
 
 ## The API bridge
 
